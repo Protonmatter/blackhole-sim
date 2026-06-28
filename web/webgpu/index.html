@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kerr WebGPU Renderer</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #050508; color: #ddd; font-family: system-ui, sans-serif; }
+    canvas { width: 100vw; height: 100vh; display: block; }
+    #panel { position: fixed; left: 12px; top: 12px; padding: 12px; background: rgba(0,0,0,.62); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; min-width: 280px; }
+    label { display: grid; grid-template-columns: 92px 1fr 60px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+    input { width: 100%; }
+    code { color: #9fd; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="panel">
+    <div><b>Kerr WebGPU</b> <span id="status"></span></div>
+    <label>shader <select id="shader"><option value="disk">thin disk</option><option value="volume">GRRT volume</option><option value="stokes">Stokes bricks</option></select><output></output></label>
+    <label>spin <input id="spin" type="range" min="-0.98" max="0.98" step="0.01" value="0.75"><output></output></label>
+    <label>inclination <input id="inc" type="range" min="5" max="88" step="1" value="67"><output></output></label>
+    <label>camera r <input id="camr" type="range" min="12" max="120" step="1" value="55"><output></output></label>
+    <label>steps <input id="steps" type="range" min="120" max="1200" step="20" value="520"><output></output></label>
+    <label>density <input id="density" type="range" min="0.05" max="8" step="0.05" value="1"><output></output></label>
+    <label>temp <input id="temp" type="range" min="0.05" max="5" step="0.05" value="1"><output></output></label>
+    <label>absorb <input id="absorb" type="range" min="0" max="4" step="0.05" value="1"><output></output></label>
+    <div style="font-size:12px; opacity:.75">Units: <code>G=c=M=1</code>. Serve over localhost.</div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

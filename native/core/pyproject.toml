@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "blackhole-native"
+version = "0.8.0"
+description = "Native architecture probe scaffold for blackhole-sim"
+requires-python = ">=3.10"
+
+[tool.maturin]
+manifest-path = "Cargo.toml"
+module-name = "blackhole_native"

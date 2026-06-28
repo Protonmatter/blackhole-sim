@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Rust
+target/
+Cargo.lock
+
+# Simulator outputs
+out/
+python/out/
+*.npz
+*.h5
+*.hdf5
+*.png
+*.tiff
+
+# Local/editor state
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Secrets and local config
+.env
+.env.*
+*.pem
+*.key
+*.pfx

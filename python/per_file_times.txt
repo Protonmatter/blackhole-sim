@@ -1,0 +1,21 @@
+=== tests/test_calibration.py
+..                                                                       [100%]
+elapsed=0:03.86 exit=0
+PIPE_EXIT=0
+=== tests/test_external_validation.py
+....                                                                     [100%]
+elapsed=0:04.12 exit=0
+PIPE_EXIT=0
+=== tests/test_geodesics.py
+...                                                                      [100%]
+elapsed=0:03.95 exit=0
+PIPE_EXIT=0
+=== tests/test_grmhd.py
+...                                                                      [100%]
+elapsed=0:04.00 exit=0
+PIPE_EXIT=0
+=== tests/test_grmhd_adapters.py
+.                                                                        [100%]
+elapsed=0:04.38 exit=0
+PIPE_EXIT=0
+=== tests/test_grrt_renderer.py

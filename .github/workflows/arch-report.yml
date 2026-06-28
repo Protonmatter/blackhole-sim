@@ -1,0 +1,32 @@
+name: Architecture Report
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  report:
+    name: arch-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: ubuntu-24.04-arm
+          - os: windows-2025
+          - os: windows-11-arm
+          - os: macos-13
+          - os: macos-15
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -U pip && python -m pip install -e .[dev]
+      - name: Doctor
+        run: blackhole-accelerators doctor --json --fail-on-emulation

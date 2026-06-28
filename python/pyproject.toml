@@ -1,0 +1,32 @@
+[project]
+name = "blackhole-sim"
+version = "0.8.0"
+description = "Kerr GRMHD/GRRT black-hole simulator with native foundation probes, polarized transfer, public dump validation, and GPU/WebGPU kernel assets"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "matplotlib>=3.7",
+  "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "maturin>=1.7"]
+hdf5 = ["h5py>=3.10"]
+
+[project.scripts]
+blackhole-render = "blackhole_sim.cli:main"
+blackhole-render-grrt = "blackhole_sim.grrt_cli:main"
+blackhole-make-snapshot = "blackhole_sim.snapshot_cli:main"
+blackhole-render-stokes = "blackhole_sim.polarized_cli:main"
+blackhole-regression = "blackhole_sim.regression_cli:main"
+blackhole-public-dump = "blackhole_sim.public_dump_cli:main"
+blackhole-external-validation = "blackhole_sim.external_validation_cli:main"
+blackhole-accelerators = "blackhole_sim.accelerator_cli:main"
+blackhole-precompute-bricks = "blackhole_sim.coefficient_bricks_cli:main"
+blackhole-render-accelerated = "blackhole_sim.accelerated_cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

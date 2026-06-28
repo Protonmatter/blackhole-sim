@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interactive Kerr Black-Hole Simulation Showcase</title>
+  <style>
+    :root { --bg:#05060a; --panel:rgba(12,14,22,.86); --line:rgba(255,255,255,.13); --text:#e9edf5; --muted:#aeb7c8; --accent:#79d7ff; --warn:#ffca72; }
+    * { box-sizing:border-box; }
+    html, body { margin:0; height:100%; background:radial-gradient(circle at 70% 15%, #151a2a 0%, #05060a 48%, #010207 100%); color:var(--text); font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; }
+    main { display:grid; grid-template-columns:minmax(340px, 420px) 1fr; min-height:100vh; }
+    aside { padding:18px; background:var(--panel); border-right:1px solid var(--line); overflow:auto; }
+    section.stage { position:relative; min-height:100vh; display:grid; grid-template-rows:1fr auto; }
+    canvas { width:100%; height:100%; display:block; background:#000; }
+    h1 { font-size:20px; margin:0 0 6px; }
+    h2 { font-size:14px; margin:18px 0 8px; color:#fff; }
+    p, li { color:var(--muted); font-size:13px; line-height:1.45; }
+    code { color:#b5f3ff; }
+    .pill { display:inline-flex; gap:6px; align-items:center; padding:3px 8px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:12px; }
+    .status { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 14px; }
+    .grid { display:grid; gap:8px; }
+    label { display:grid; grid-template-columns:116px 1fr 52px; gap:8px; align-items:center; color:var(--muted); font-size:12px; margin:8px 0; }
+    input[type=range] { width:100%; }
+    output { text-align:right; font-variant-numeric:tabular-nums; color:#dfe8f4; }
+    button, a.button { appearance:none; border:1px solid var(--line); background:rgba(255,255,255,.055); color:var(--text); padding:8px 10px; border-radius:8px; cursor:pointer; text-decoration:none; font-size:13px; text-align:center; }
+    button:hover, a.button:hover { border-color:rgba(121,215,255,.55); background:rgba(121,215,255,.08); }
+    .buttons { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .wide { grid-column:1 / -1; }
+    .step { padding:10px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.035); margin:8px 0; }
+    .step.active { border-color:rgba(121,215,255,.65); box-shadow:0 0 0 1px rgba(121,215,255,.16) inset; }
+    .metrics { position:absolute; right:14px; top:14px; display:grid; gap:6px; background:rgba(0,0,0,.45); border:1px solid var(--line); border-radius:10px; padding:10px; min-width:245px; backdrop-filter:blur(8px); }
+    .metrics div { display:flex; justify-content:space-between; gap:14px; font-size:12px; color:var(--muted); }
+    .metrics strong { color:#fff; font-variant-numeric:tabular-nums; }
+    .footer { padding:10px 14px; border-top:1px solid var(--line); background:rgba(0,0,0,.44); display:flex; gap:12px; justify-content:space-between; align-items:center; color:var(--muted); font-size:12px; }
+    .note { color:var(--warn); }
+    iframe { position:absolute; inset:0; width:100%; height:100%; border:0; display:none; background:#000; }
+    .webgpu-mode iframe { display:block; }
+    .webgpu-mode canvas { display:none; }
+    @media (max-width: 900px) { main { grid-template-columns:1fr; } aside { max-height:50vh; border-right:0; border-bottom:1px solid var(--line); } section.stage { min-height:50vh; } .metrics { position:static; margin:10px; } }
+  </style>
+</head>
+<body>
+<main>
+  <aside>
+    <h1>Interactive Kerr black-hole showcase</h1>
+    <p>This session demonstrates the v0.7 architecture: Kerr/spin controls, observer inclination, coefficient-brick style transfer controls, progressive render profiles, and a link into the actual WebGPU Stokes renderer.</p>
+    <div class="status">
+      <span class="pill" id="gpuStatus">WebGPU: checking…</span>
+      <span class="pill" id="profileStatus">Profile: desktop preview</span>
+    </div>
+
+    <h2>Guided session</h2>
+    <div class="step active" data-step="0"><b>1. Spin / photon ring</b><p>Increase spin. The shadow and inner emission become asymmetric because frame dragging changes ray trajectories and disk orbital speeds.</p></div>
+    <div class="step" data-step="1"><b>2. Inclination / Doppler beaming</b><p>Move toward edge-on. The approaching side brightens and the receding side dims.</p></div>
+    <div class="step" data-step="2"><b>3. Stokes / Faraday terms</b><p>Raise Faraday rotation or conversion. The diagnostic polarization overlay changes even when total intensity is similar.</p></div>
+    <div class="step" data-step="3"><b>4. Progressive full-HD path</b><p>Use profiles to mimic Surface or workstation render budgets. This shows why tiles and progressive passes are required.</p></div>
+    <div class="buttons">
+      <button id="prevStep">Previous</button><button id="nextStep">Next</button>
+    </div>
+
+    <h2>Profiles</h2>
+    <div class="buttons">
+      <button data-preset="snapdragon">Surface Snapdragon</button>
+      <button data-preset="intel">Surface Intel 268V</button>
+      <button data-preset="desktop">Desktop preview</button>
+      <button data-preset="workstation">Workstation CUDA</button>
+    </div>
+
+    <h2>Simulation controls</h2>
+    <label>spin a <input id="spin" type="range" min="-0.98" max="0.98" step="0.01" value="0.75"><output></output></label>
+    <label>inclination <input id="inclination" type="range" min="5" max="88" step="1" value="67"><output></output></label>
+    <label>camera r/M <input id="camera" type="range" min="12" max="120" step="1" value="55"><output></output></label>
+    <label>steps <input id="steps" type="range" min="96" max="1800" step="16" value="512"><output></output></label>
+    <label>density scale <input id="density" type="range" min="0.05" max="8" step="0.05" value="1.00"><output></output></label>
+    <label>B-field scale <input id="bfield" type="range" min="0.05" max="6" step="0.05" value="1.00"><output></output></label>
+    <label>Faraday rot. <input id="faraday" type="range" min="0" max="8" step="0.05" value="1.00"><output></output></label>
+    <label>Faraday conv. <input id="conversion" type="range" min="0" max="8" step="0.05" value="1.00"><output></output></label>
+
+    <h2>Renderer</h2>
+    <div class="buttons">
+      <button id="fallbackMode">Show guided fallback</button>
+      <button id="webgpuMode">Open WebGPU Stokes</button>
+      <button id="snapshot" class="wide">Save current preview PNG</button>
+      <a class="button wide" href="../simulator/webgpu/index.html?shader=stokes" target="_blank">Open actual v0.7 WebGPU renderer in new tab</a>
+    </div>
+    <p class="note">The guided canvas is a fast visual session layer. The actual v0.7 WGSL/CUDA/Metal/HIP kernels are in the included simulator folder.</p>
+  </aside>
+
+  <section class="stage" id="stage">
+    <canvas id="view"></canvas>
+    <iframe id="webgpuFrame" src="../simulator/webgpu/index.html?shader=stokes"></iframe>
+    <div class="metrics">
+      <div><span>render mode</span><strong id="modeMetric">guided canvas</strong></div>
+      <div><span>target pixels</span><strong id="pixelMetric">—</strong></div>
+      <div><span>ray steps</span><strong id="stepMetric">—</strong></div>
+      <div><span>approx work</span><strong id="workMetric">—</strong></div>
+      <div><span>recommended backend</span><strong id="backendMetric">—</strong></div>
+    </div>
+    <div class="footer"><span>v0.7 showcase session</span><span>Kerr + coefficient bricks + Stokes transfer + progressive GPU path</span></div>
+  </section>
+</main>
+<script>
+const canvas = document.getElementById('view');
+const ctx = canvas.getContext('2d');
+const stage = document.getElementById('stage');
+const webgpuFrame = document.getElementById('webgpuFrame');
+const controls = Object.fromEntries(['spin','inclination','camera','steps','density','bfield','faraday','conversion'].map(id => [id, document.getElementById(id)]));
+let currentStep = 0;
+let profile = 'desktop preview';
+let t0 = performance.now();
+
+function syncOutputs(){
+  for (const el of Object.values(controls)) {
+    const out = el.parentElement.querySelector('output');
+    out.value = Number(el.value).toFixed(el.step.includes('.') ? 2 : 0);
+  }
+}
+for (const el of Object.values(controls)) el.addEventListener('input', syncOutputs);
+syncOutputs();
+
+async function detectGPU(){
+  const s = document.getElementById('gpuStatus');
+  if (!navigator.gpu) { s.textContent = 'WebGPU: unavailable'; return; }
+  try { const adapter = await navigator.gpu.requestAdapter(); s.textContent = adapter ? 'WebGPU: available' : 'WebGPU: no adapter'; }
+  catch { s.textContent = 'WebGPU: blocked'; }
+}
+detectGPU();
+
+function resize(){
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+  canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+}
+addEventListener('resize', resize); resize();
+
+function render(time){
+  const w = canvas.width, h = canvas.height;
+  const cx = w * 0.5, cy = h * 0.5;
+  const min = Math.min(w, h);
+  const spin = parseFloat(controls.spin.value);
+  const inc = parseFloat(controls.inclination.value) * Math.PI / 180;
+  const density = parseFloat(controls.density.value);
+  const bfield = parseFloat(controls.bfield.value);
+  const faraday = parseFloat(controls.faraday.value);
+  const conv = parseFloat(controls.conversion.value);
+  const phase = (time - t0) * 0.00018;
+
+  const img = ctx.createImageData(w, h);
+  const data = img.data;
+  const shadowR = min * (0.072 + 0.010 * Math.cos(inc) - 0.006 * Math.abs(spin));
+  const ringR = shadowR * (1.82 - 0.17 * spin * Math.sin(inc));
+  const thickness = shadowR * (0.38 + 0.18 * Math.sin(inc));
+  const skew = 0.38 * spin * Math.sin(inc);
+  const tilt = Math.cos(inc) * 0.62 + 0.22;
+
+  for (let y=0; y<h; y++) {
+    const yy = (y - cy) / min;
+    for (let x=0; x<w; x++) {
+      const xx = (x - cx) / min;
+      const xs = xx - skew * yy;
+      const ys = yy / tilt;
+      const r = Math.sqrt(xs*xs + ys*ys);
+      const a = Math.atan2(ys, xs);
+      const rr = r * min;
+      const doppler = 1.0 + 1.55 * Math.sin(inc) * Math.max(0, Math.cos(a - 0.7));
+      const spiral = 0.78 + 0.22 * Math.sin(5.0*a + 34.0*r - phase*18.0 + spin*3.0);
+      const ring = Math.exp(-Math.pow((rr - ringR) / thickness, 2.0));
+      const lens = 0.32 * Math.exp(-Math.pow((rr - ringR*0.72)/(thickness*0.68), 2));
+      const disk = ring * doppler * spiral * density + lens * 0.75;
+      const shadow = 1.0 - Math.exp(-Math.pow(rr / shadowR, 5.0));
+      const star = Math.exp(-Math.pow(r*3.3, 2.0)) * 0.02;
+      let I = Math.max(0, disk * shadow + star);
+      const polAng = a + spin * 1.9 + faraday * 0.32 * Math.sin(12*r + phase) + conv * 0.11*Math.cos(3*a);
+      const lin = Math.min(0.72, 0.15 + 0.13*bfield + 0.05*faraday);
+      const Q = lin * Math.cos(2*polAng);
+      const U = lin * Math.sin(2*polAng);
+      const V = 0.10 * conv * Math.sin(polAng + phase*3.0);
+      const red = I * (1.0 + 0.52*Math.max(Q,0) + 0.12*Math.max(V,0));
+      const green = I * (0.74 + 0.35*Math.sqrt(Q*Q+U*U));
+      const blue = I * (0.92 + 0.55*Math.max(-Q,0) + 0.12*Math.max(-V,0));
+      const idx = 4*(y*w+x);
+      data[idx]   = Math.max(0, Math.min(255, 255 * Math.pow(red/(1+red), 1/2.2)));
+      data[idx+1] = Math.max(0, Math.min(255, 255 * Math.pow(green/(1+green), 1/2.2)));
+      data[idx+2] = Math.max(0, Math.min(255, 255 * Math.pow(blue/(1+blue), 1/2.2)));
+      data[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  drawOverlay(cx, cy, shadowR, ringR, time);
+  updateMetrics();
+  requestAnimationFrame(render);
+}
+
+function drawOverlay(cx, cy, shadowR, ringR, time){
+  ctx.save();
+  ctx.strokeStyle = 'rgba(121,215,255,.35)'; ctx.lineWidth = Math.max(1, canvas.width/900);
+  ctx.beginPath(); ctx.arc(cx, cy, shadowR, 0, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.10)'; ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.65)'; ctx.font = `${Math.max(11, canvas.width/90)}px ui-monospace, monospace`;
+  ctx.fillText('event horizon / shadow proxy', cx + shadowR + 8, cy - shadowR*0.6);
+  ctx.restore();
+}
+
+function updateMetrics(){
+  const steps = Number(controls.steps.value);
+  let width = 1280, height = 720, backend = 'WebGPU';
+  if (profile.includes('Snapdragon')) { width=960; height=540; backend='WebGPU / Adreno'; }
+  if (profile.includes('Intel')) { width=1280; height=720; backend='WebGPU / Arc / OpenCL'; }
+  if (profile.includes('CUDA')) { width=1920; height=1080; backend='CUDA'; }
+  const pix = width * height;
+  document.getElementById('pixelMetric').textContent = width + '×' + height;
+  document.getElementById('stepMetric').textContent = steps.toLocaleString();
+  document.getElementById('workMetric').textContent = (pix * steps / 1e6).toFixed(1) + 'M ray-steps';
+  document.getElementById('backendMetric').textContent = backend;
+  document.getElementById('profileStatus').textContent = 'Profile: ' + profile;
+}
+
+function setPreset(name){
+  stage.classList.remove('webgpu-mode');
+  document.getElementById('modeMetric').textContent = 'guided canvas';
+  if (name === 'snapdragon') { profile='Surface Snapdragon'; Object.assign(controls.steps, {value:256}); controls.spin.value=0.75; controls.inclination.value=63; controls.density.value=0.85; controls.bfield.value=0.7; }
+  if (name === 'intel') { profile='Surface Intel 268V'; controls.steps.value=512; controls.spin.value=0.82; controls.inclination.value=68; controls.density.value=1.0; controls.bfield.value=1.1; }
+  if (name === 'desktop') { profile='desktop preview'; controls.steps.value=768; controls.spin.value=0.75; controls.inclination.value=67; controls.density.value=1.0; controls.bfield.value=1.0; }
+  if (name === 'workstation') { profile='workstation CUDA'; controls.steps.value=1500; controls.spin.value=0.92; controls.inclination.value=72; controls.density.value=1.2; controls.bfield.value=1.4; }
+  syncOutputs(); updateMetrics();
+}
+
+document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => setPreset(b.dataset.preset)));
+function setStep(n){ currentStep = Math.max(0, Math.min(3, n)); document.querySelectorAll('.step').forEach((el, i) => el.classList.toggle('active', i === currentStep));
+  if (currentStep === 0) { controls.spin.value=0.95; }
+  if (currentStep === 1) { controls.inclination.value=82; }
+  if (currentStep === 2) { controls.faraday.value=4.2; controls.conversion.value=2.2; }
+  if (currentStep === 3) { setPreset('intel'); }
+  syncOutputs(); }
+document.getElementById('prevStep').onclick = () => setStep(currentStep - 1);
+document.getElementById('nextStep').onclick = () => setStep(currentStep + 1);
+document.getElementById('fallbackMode').onclick = () => { stage.classList.remove('webgpu-mode'); document.getElementById('modeMetric').textContent='guided canvas'; };
+document.getElementById('webgpuMode').onclick = () => { stage.classList.add('webgpu-mode'); document.getElementById('modeMetric').textContent='actual WebGPU iframe'; webgpuFrame.src='../simulator/webgpu/index.html?shader=stokes'; };
+document.getElementById('snapshot').onclick = () => { const a=document.createElement('a'); a.download='blackhole_showcase_preview.png'; a.href=canvas.toDataURL('image/png'); a.click(); };
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
