@@ -22,7 +22,10 @@ fn detect_arch(py: Python<'_>) -> PyResult<Py<PyDict>> {
     dict.set_item("arch", normalized_arch(std::env::consts::ARCH))?;
     dict.set_item("os", std::env::consts::OS)?;
     dict.set_item("family", std::env::consts::FAMILY)?;
-    dict.set_item("pointer_width", (std::mem::size_of::<usize>() * 8).to_string())?;
+    dict.set_item(
+        "pointer_width",
+        (std::mem::size_of::<usize>() * 8).to_string(),
+    )?;
     Ok(dict.into())
 }
 

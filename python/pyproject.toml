@@ -30,3 +30,10 @@ blackhole-render-accelerated = "blackhole_sim.accelerated_cli:main"
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-q"
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["blackhole_sim*"]

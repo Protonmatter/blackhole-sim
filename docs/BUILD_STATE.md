@@ -50,9 +50,22 @@ Run on Windows 11 ARM64 with Python 3.14.3 ARM64:
 - `python -m blackhole_sim.accelerator_cli list --json`: passed; WebGPU shader assets detected, ARM SIMD fallback detected.
 - `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `process_arch=arm64`, `python_arch=arm64`, `emulation_detected=false`, `native_core_loaded=false`.
 - `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out/stokes_smoke.npz`: passed; output is ignored and not committed.
+- `python -m pip install -e .[dev]`: passed after adding explicit setuptools package discovery for `blackhole_sim`.
+- `blackhole-accelerators doctor --json --fail-on-emulation`: passed from PATH after installing the editable package and native wheel; `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.8.0`.
+- `cargo fmt --check --manifest-path native/core/Cargo.toml`: passed using the repo-local `stable-aarch64-pc-windows-gnullvm` override.
+- `cargo test --manifest-path native/core/Cargo.toml`: passed using the repo-local `stable-aarch64-pc-windows-gnullvm` override.
+- `maturin build --manifest-path native/core/Cargo.toml --release --out native/core/target/wheels-local`: passed and produced `blackhole_native-0.8.0-cp310-abi3-win_arm64.whl`.
 
 Blocked locally:
 
-- `cargo fmt --check --manifest-path native/core/Cargo.toml`: `cargo` is not installed or not on PATH.
-- `cargo test --manifest-path native/core/Cargo.toml`: `cargo` is not installed or not on PATH.
-- `maturin build --manifest-path native/core/Cargo.toml --release`: `maturin` is not installed in the active Python environment.
+- MSVC-native local builds are still unavailable because Visual Studio Build Tools failed to install non-interactively with exit code `1602`.
+- `gh auth status`: GitHub CLI is installed, but no GitHub host is authenticated yet.
+
+## Local Toolchain Notes
+
+- Installed GitHub CLI `2.95.0`.
+- Installed Rustup and Rust `1.96.0`.
+- Installed `maturin 1.14.1`.
+- Installed `blackhole-sim` editable into the Python 3.14 ARM64 user environment.
+- Added user PATH entries for Cargo, winget links, and Python 3.14 ARM64 scripts.
+- Set a Rustup override for this checkout to `stable-aarch64-pc-windows-gnullvm`; `.cargo/config.toml` configures `rust-lld.exe` and static CRT flags for that target.
