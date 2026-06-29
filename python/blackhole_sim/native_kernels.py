@@ -158,7 +158,7 @@ def _sample_one(coeffs: np.ndarray, r_grid: np.ndarray, theta_grid: np.ndarray, 
     rb = _bracket_linear_grid(r_grid, float(point[0]))
     tb = _bracket_linear_grid(theta_grid, float(point[1]))
     if rb is None or tb is None:
-        return np.zeros((11,), dtype=np.float64)
+        return np.full((11,), np.nan, dtype=np.float64)
     r0, r1, wr = rb
     t0, t1, wt = tb
     p0, p1, wp = _bracket_periodic_phi_grid(phi_grid, float(point[2]))
@@ -200,9 +200,10 @@ def sample_brick_trilinear_reference(
 ) -> np.ndarray:
     """Python reference for trilinear coefficient sampling.
 
-    Samples outside the nonperiodic ``r`` or ``theta`` grids return zero
-    11-coefficient vectors. ``phi`` is periodic over a 2*pi domain anchored at
-    ``phi_grid[0]`` to match the accelerated renderer's existing helper.
+    Samples outside the nonperiodic ``r`` or ``theta`` grids return NaN
+    11-coefficient vectors so invalid domain access cannot be confused with
+    physical zero coefficients. ``phi`` is periodic over a 2*pi domain anchored
+    at ``phi_grid[0]`` to match the accelerated renderer's existing helper.
     """
 
     coeff_arr, rg, tg, pg, point_arr = _coerce_sampler_inputs(coeffs, r_grid, theta_grid, phi_grid, points)
@@ -305,7 +306,11 @@ def sample_and_step_stokes_reference(
     ds_value = _validate_ds(ds_cm)
     initial_arr = _coerce_initial(initial, (int(point_arr.shape[0]),))
     sampled = sample_brick_trilinear_reference(coeff_arr, rg, tg, pg, point_arr)
-    return stokes_rk2_brick_reference(sampled, ds_value, initial_arr)
+    out = np.full((int(point_arr.shape[0]), 4), np.nan, dtype=np.float64)
+    valid = np.all(np.isfinite(sampled), axis=1)
+    if np.any(valid):
+        out[valid] = stokes_rk2_brick_reference(sampled[valid], ds_value, initial_arr[valid])
+    return np.ascontiguousarray(out)
 
 
 def native_sample_and_step_stokes_available() -> bool:

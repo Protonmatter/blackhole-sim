@@ -176,12 +176,12 @@ fn sample_coefficients(
     r: f64,
     theta: f64,
     phi: f64,
-) -> [f64; COEFFS_PER_CELL] {
+) -> Option<[f64; COEFFS_PER_CELL]> {
     let Some((r0, r1, wr)) = bracket_linear(r_grid, r) else {
-        return [0.0; COEFFS_PER_CELL];
+        return None;
     };
     let Some((t0, t1, wt)) = bracket_linear(theta_grid, theta) else {
-        return [0.0; COEFFS_PER_CELL];
+        return None;
     };
     let (p0, p1, wp) = bracket_periodic_phi(phi_grid, phi);
     let ntheta = theta_grid.len();
@@ -204,7 +204,7 @@ fn sample_coefficients(
         let c1 = (1.0 - wt) * c10 + wt * c11;
         out[idx] = (1.0 - wr) * c0 + wr * c1;
     }
-    out
+    Some(out)
 }
 
 fn stokes_step_rk2(stokes: [f64; 4], coeff: &[f64], ds_cm: f64) -> [f64; 4] {
@@ -298,7 +298,8 @@ fn sample_brick_trilinear(
             points[point_start],
             points[point_start + 1],
             points[point_start + 2],
-        );
+        )
+        .unwrap_or([f64::NAN; COEFFS_PER_CELL]);
         out.extend_from_slice(&sampled);
     }
     Ok(out)
@@ -335,7 +336,7 @@ fn sample_and_step_stokes(
     let mut out = Vec::with_capacity(point_count * STOKES_COMPONENTS);
     for idx in 0..point_count {
         let point_start = idx * 3;
-        let coeff = sample_coefficients(
+        let Some(coeff) = sample_coefficients(
             &coeffs,
             &r_grid,
             &theta_grid,
@@ -343,7 +344,10 @@ fn sample_and_step_stokes(
             points[point_start],
             points[point_start + 1],
             points[point_start + 2],
-        );
+        ) else {
+            out.extend_from_slice(&[f64::NAN; STOKES_COMPONENTS]);
+            continue;
+        };
         let init_start = if broadcast_initial {
             0
         } else {
@@ -430,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_brick_trilinear_returns_zero_outside_nonperiodic_domain() {
+    fn sample_brick_trilinear_returns_nan_outside_nonperiodic_domain() {
         let out = sample_brick_trilinear(
             linear_fixture_coeffs(),
             vec![0.0, 1.0],
@@ -439,11 +443,12 @@ mod tests {
             vec![-0.1, 0.5, 0.5, 0.5, 1.1, 0.5],
         )
         .unwrap();
-        assert_eq!(out, vec![0.0; 22]);
+        assert_eq!(out.len(), 22);
+        assert!(out.iter().all(|value| value.is_nan()));
     }
 
     #[test]
-    fn sample_and_step_stokes_matches_zero_coeff_noop_for_outside_sample() {
+    fn sample_and_step_stokes_returns_nan_for_outside_sample() {
         let out = sample_and_step_stokes(
             linear_fixture_coeffs(),
             vec![0.0, 1.0],
@@ -454,6 +459,7 @@ mod tests {
             vec![1.0, 2.0, 3.0, 4.0],
         )
         .unwrap();
-        assert_eq!(out, vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(out.len(), 4);
+        assert!(out.iter().all(|value| value.is_nan()));
     }
 }

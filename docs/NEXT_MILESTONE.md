@@ -11,7 +11,7 @@ Move deterministic hot-loop workloads from Python into Rust native CPU code with
 - Add regression tests that compare native output against the accepted Python envelope.
 - Extend `blackhole-benchmark --json` so it reports reference versus native timings on the same workload.
 - Keep `blackhole-accelerators doctor --fail-on-emulation` as a release gate for native validation.
-- Next target after sampler plus RK2 parity is coefficient-brick precompute loop migration, not full renderer replacement.
+- Next target after sampler plus RK2 parity is routing the composed micro-kernel through a batched ray-step parity harness; coefficient-brick precompute loop migration comes after that integration boundary is proven.
 
 ## Release Gates
 

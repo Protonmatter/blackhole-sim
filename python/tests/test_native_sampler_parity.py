@@ -64,7 +64,7 @@ def test_sample_brick_trilinear_reference_interpolates_in_bounds():
     np.testing.assert_allclose(out[0], expected, rtol=SAMPLE_BRICK_TRILINEAR_RTOL, atol=SAMPLE_BRICK_TRILINEAR_ATOL)
 
 
-def test_sample_brick_trilinear_reference_returns_zero_outside_r_theta():
+def test_sample_brick_trilinear_reference_returns_nan_outside_r_theta():
     coeffs, r_grid, theta_grid, phi_grid = _linear_coeff_fixture()
     points = np.array(
         [
@@ -79,7 +79,7 @@ def test_sample_brick_trilinear_reference_returns_zero_outside_r_theta():
     out = sample_brick_trilinear_reference(coeffs, r_grid, theta_grid, phi_grid, points)
 
     assert out.shape == (4, 11)
-    np.testing.assert_array_equal(out, np.zeros((4, 11), dtype=np.float64))
+    assert np.all(np.isnan(out))
 
 
 def test_sample_brick_trilinear_reference_wraps_periodic_phi():
@@ -100,7 +100,13 @@ def test_sample_brick_trilinear_fallback_matches_reference():
     reference = sample_brick_trilinear_reference(coeffs, r_grid, theta_grid, phi_grid, points)
     fallback = sample_brick_trilinear(coeffs, r_grid, theta_grid, phi_grid, points, prefer_native=False)
 
-    np.testing.assert_allclose(fallback, reference, rtol=SAMPLE_BRICK_TRILINEAR_RTOL, atol=SAMPLE_BRICK_TRILINEAR_ATOL)
+    np.testing.assert_allclose(
+        fallback,
+        reference,
+        rtol=SAMPLE_BRICK_TRILINEAR_RTOL,
+        atol=SAMPLE_BRICK_TRILINEAR_ATOL,
+        equal_nan=True,
+    )
 
 
 def test_native_sample_brick_trilinear_matches_reference_when_installed():
@@ -120,7 +126,13 @@ def test_native_sample_brick_trilinear_matches_reference_when_installed():
     reference = sample_brick_trilinear_reference(coeffs, r_grid, theta_grid, phi_grid, points)
     native = sample_brick_trilinear(coeffs, r_grid, theta_grid, phi_grid, points, prefer_native=True)
 
-    np.testing.assert_allclose(native, reference, rtol=SAMPLE_BRICK_TRILINEAR_RTOL, atol=SAMPLE_BRICK_TRILINEAR_ATOL)
+    np.testing.assert_allclose(
+        native,
+        reference,
+        rtol=SAMPLE_BRICK_TRILINEAR_RTOL,
+        atol=SAMPLE_BRICK_TRILINEAR_ATOL,
+        equal_nan=True,
+    )
 
 
 def test_sample_and_step_stokes_reference_matches_sampler_then_rk2():
@@ -129,10 +141,12 @@ def test_sample_and_step_stokes_reference_matches_sampler_then_rk2():
     initial = _initial(points.shape[0])
 
     sampled = sample_brick_trilinear_reference(coeffs, r_grid, theta_grid, phi_grid, points)
-    expected = stokes_rk2_brick_reference(sampled, ds_cm=0.05, initial=initial)
+    expected = np.full((points.shape[0], 4), np.nan, dtype=np.float64)
+    valid = np.all(np.isfinite(sampled), axis=1)
+    expected[valid] = stokes_rk2_brick_reference(sampled[valid], ds_cm=0.05, initial=initial[valid])
     out = sample_and_step_stokes_reference(coeffs, r_grid, theta_grid, phi_grid, points, ds_cm=0.05, initial=initial)
 
-    np.testing.assert_allclose(out, expected, rtol=STOKES_RK2_RTOL, atol=STOKES_RK2_ATOL)
+    np.testing.assert_allclose(out, expected, rtol=STOKES_RK2_RTOL, atol=STOKES_RK2_ATOL, equal_nan=True)
 
 
 def test_native_sample_and_step_stokes_matches_reference_when_installed():
@@ -152,4 +166,4 @@ def test_native_sample_and_step_stokes_matches_reference_when_installed():
     reference = sample_and_step_stokes_reference(coeffs, r_grid, theta_grid, phi_grid, points, ds_cm=0.05, initial=initial)
     native = sample_and_step_stokes(coeffs, r_grid, theta_grid, phi_grid, points, ds_cm=0.05, initial=initial, prefer_native=True)
 
-    np.testing.assert_allclose(native, reference, rtol=STOKES_RK2_RTOL, atol=STOKES_RK2_ATOL)
+    np.testing.assert_allclose(native, reference, rtol=STOKES_RK2_RTOL, atol=STOKES_RK2_ATOL, equal_nan=True)

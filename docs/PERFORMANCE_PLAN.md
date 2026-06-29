@@ -28,7 +28,7 @@ The default JSON payload also includes native parity probes:
 
 - Native output must match the Python coefficient-brick or Stokes regression envelope before speedups are claimed.
 - Native Stokes RK2 parity uses `rtol=1.0e-12` and `atol=1.0e-12` for the deterministic coefficient-brick fixture.
-- Native coefficient sampling parity uses `rtol=1.0e-12` and `atol=1.0e-12` for deterministic in-bounds, out-of-range, and periodic-phi fixtures.
+- Native coefficient sampling parity uses `rtol=1.0e-12` and `atol=1.0e-12` for deterministic in-bounds and periodic-phi fixtures, and requires explicit `NaN` output for out-of-range nonperiodic samples.
 - `blackhole-accelerators doctor --json --fail-on-emulation` must pass on the target machine.
 - Benchmarks must report the target architecture and whether emulation was detected.
 - GPU kernels must have a CPU reference comparison for a small deterministic render before being promoted beyond prototype status.
@@ -38,5 +38,6 @@ The default JSON payload also includes native parity probes:
 1. Stokes RK2 transfer step over coefficient-brick cells.
 2. Trilinear coefficient sampling.
 3. Combined sample-and-step Stokes micro-kernel.
-4. Coefficient-brick precompute loops.
-5. Full tiled ray/Stokes integration after the above have parity tests.
+4. Batched ray-step parity harness using the composed micro-kernel.
+5. Coefficient-brick precompute loops.
+6. Full tiled ray/Stokes integration after the above have parity tests.
