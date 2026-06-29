@@ -1,6 +1,6 @@
 # BlackHole Sim
 
-Kerr GRMHD / GRRT black-hole simulator with polarized transfer, public dump validation, WebGPU/native kernel assets, and a v0.8 native-foundation scaffold.
+Kerr GRMHD / GRRT black-hole simulator with polarized transfer, public dump validation, WebGPU/native kernel assets, and v0.9 native hot-loop parity groundwork.
 
 This repository is intentionally split into portable orchestration, native hot-loop groundwork, and browser showcase assets:
 
@@ -31,7 +31,7 @@ python -m pytest -q
 blackhole-accelerators list --json
 blackhole-accelerators doctor --json --fail-on-emulation
 blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_smoke.npz
-blackhole-benchmark --json --nr 8 --ntheta 6 --nphi 8 --iterations 1
+blackhole-benchmark --json --nr 8 --ntheta 6 --nphi 8 --points 64 --iterations 1
 ```
 
 Rust scaffold checks:
@@ -44,7 +44,13 @@ maturin build --manifest-path native/core/Cargo.toml --release
 
 ## Native Boundary
 
-The v0.8 milestone does not claim full compiled native physics parity. It adds the architecture probe and native module scaffold needed to prove future wheels are native for Windows ARM64, Windows x86_64, macOS arm64/x86_64, Linux x86_64, and Linux aarch64.
+The v0.9 milestone keeps Python as the reference path while proving small native CPU parity targets behind regression gates:
+
+- `blackhole_native.stokes_rk2_brick()`
+- `blackhole_native.sample_brick_trilinear()`
+- `blackhole_native.sample_and_step_stokes()`
+
+These are not full renderer parity or GPU physics parity claims. Native wheels still must pass architecture and parity gates on the target platform before any performance claim is made.
 
 The release gate starts with:
 

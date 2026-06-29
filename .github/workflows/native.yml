@@ -56,7 +56,7 @@ jobs:
           python -c "import blackhole_native, json; info=blackhole_native.detect_arch(); print(json.dumps({'version': blackhole_native.core_version(), 'arch': info}, sort_keys=True)); assert info.get('arch') in {'arm64', 'x86_64', 'x86'}"
           blackhole-accelerators doctor --json --fail-on-emulation
       - name: Native parity regression
-        run: python -m pytest -q python/tests/test_native_stokes_parity.py
+        run: python -m pytest -q python/tests/test_native_stokes_parity.py python/tests/test_native_sampler_parity.py
       - uses: actions/upload-artifact@v4
         with:
           name: native-wheel-${{ matrix.os }}

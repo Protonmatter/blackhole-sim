@@ -2,7 +2,7 @@
 
 ## Goal
 
-Move deterministic hot-loop workloads from Python into Rust native CPU code without changing public simulator behavior. The first target is RK2 Stokes stepping over coefficient-brick cells because it has a compact 11-coefficient contract and stable Python reference math.
+Move deterministic hot-loop workloads from Python into Rust native CPU code without changing public simulator behavior. The accepted targets are intentionally small: RK2 Stokes stepping, trilinear coefficient sampling, and a composed sample-and-step Stokes micro-kernel.
 
 ## Required Work
 
@@ -11,6 +11,7 @@ Move deterministic hot-loop workloads from Python into Rust native CPU code with
 - Add regression tests that compare native output against the accepted Python envelope.
 - Extend `blackhole-benchmark --json` so it reports reference versus native timings on the same workload.
 - Keep `blackhole-accelerators doctor --fail-on-emulation` as a release gate for native validation.
+- Next target after sampler plus RK2 parity is coefficient-brick precompute loop migration, not full renderer replacement.
 
 ## Release Gates
 

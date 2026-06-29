@@ -27,6 +27,10 @@ Date: 2026-06-29
 - Updated Intel macOS CI coverage to use the current `macos-15-intel` runner label.
 - Added the first native CPU hot-loop parity target: Rust `blackhole_native.stokes_rk2_brick()` for RK2 Stokes stepping over coefficient-brick cells, with Python reference fallback.
 - Extended `blackhole-benchmark --json` to report Python reference and native timing for the Stokes RK2 brick workload.
+- Added Rust `blackhole_native.sample_brick_trilinear()` for deterministic trilinear coefficient-brick sampling, with Python reference fallback.
+- Added Rust `blackhole_native.sample_and_step_stokes()` as the first composed sampler-plus-RK2 micro-kernel.
+- Extended `blackhole-benchmark --json` to report Python reference and native timing for the coefficient sampler workload, including backend, architecture, grid size, point count, and parity error.
+- Native wheel CI now runs sampler parity tests after wheel install, alongside Stokes RK2 parity.
 
 ## Release Boundary
 
@@ -40,13 +44,13 @@ python -m compileall blackhole_sim
 python -m pytest -q
 blackhole-accelerators list --json
 blackhole-accelerators doctor --json --fail-on-emulation
-blackhole-benchmark --json --nr 3 --ntheta 3 --nphi 3 --iterations 1
+blackhole-benchmark --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1
 blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_smoke.npz
 cd ..
 cargo fmt --check --manifest-path native/core/Cargo.toml
 cargo test --manifest-path native/core/Cargo.toml
 maturin build --manifest-path native/core/Cargo.toml --release
-python -m pytest -q python/tests/test_native_stokes_parity.py
+python -m pytest -q python/tests/test_native_stokes_parity.py python/tests/test_native_sampler_parity.py
 ```
 
 ## Local Validation Evidence
@@ -77,6 +81,20 @@ v0.9.0 local parity evidence:
 - `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 3 --iterations 1`: passed; schema is `blackhole_sim.benchmark.v2`, native Stokes RK2 parity reported `allclose=true`, `max_abs_diff=0.0`, and `native_available=true`.
 - `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
 - `blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_v090_smoke.npz`: passed; output is ignored and not committed.
+
+v0.9.0 sampler/composed micro-kernel local evidence:
+
+- `python -m compileall blackhole_sim`: passed.
+- `cargo fmt --check --manifest-path native/core/Cargo.toml`: passed.
+- `cargo test --manifest-path native/core/Cargo.toml`: passed; 6 Rust unit tests passed.
+- `maturin build --manifest-path native/core/Cargo.toml --release --out native/core/target/wheels-v090-sampler`: passed and produced `blackhole_native-0.9.0-cp310-abi3-win_arm64.whl`.
+- `python -m pip install --force-reinstall native\core\target\wheels-v090-sampler\blackhole_native-0.9.0-cp310-abi3-win_arm64.whl`: passed.
+- `python -m pytest -q tests/test_native_sampler_parity.py tests/test_native_stokes_parity.py tests/test_benchmark.py`: passed with installed native sampler and sample-and-step functions.
+- `python -m pytest -q`: passed with optional skips.
+- `python -m blackhole_sim.benchmark_cli --target sample-brick-trilinear --json --nr 4 --ntheta 3 --nphi 5 --points 16 --iterations 2`: passed; native sampler parity reported `allclose=true`, `max_abs_diff=0.0`, `max_rel_diff=0.0`, `native_available=true`, and `process_arch=arm64`.
+- `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1`: passed; schema is `blackhole_sim.benchmark.v2` and includes sampler plus Stokes native parity payloads.
+- `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
+- `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out\stokes_sampler_smoke.npz`: passed; output is ignored and not committed.
 
 ## GitHub CI Evidence
 

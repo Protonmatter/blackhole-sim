@@ -45,7 +45,17 @@ from .accelerated_renderer import (
     render_progressive_stokes_bricks,
     sample_coefficient_brick,
 )
-from .native_kernels import stokes_rk2_brick, stokes_rk2_brick_reference, native_stokes_rk2_available
+from .native_kernels import (
+    native_sample_and_step_stokes_available,
+    native_sample_brick_trilinear_available,
+    native_stokes_rk2_available,
+    sample_and_step_stokes,
+    sample_and_step_stokes_reference,
+    sample_brick_trilinear,
+    sample_brick_trilinear_reference,
+    stokes_rk2_brick,
+    stokes_rk2_brick_reference,
+)
 
 __all__ = [
     "critical_impact_parameter",
@@ -91,6 +101,12 @@ __all__ = [
     "render_stokes_image_bricks",
     "render_progressive_stokes_bricks",
     "sample_coefficient_brick",
+    "sample_brick_trilinear",
+    "sample_brick_trilinear_reference",
+    "native_sample_brick_trilinear_available",
+    "sample_and_step_stokes",
+    "sample_and_step_stokes_reference",
+    "native_sample_and_step_stokes_available",
     "stokes_rk2_brick",
     "stokes_rk2_brick_reference",
     "native_stokes_rk2_available",
