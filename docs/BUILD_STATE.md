@@ -4,7 +4,7 @@ Date: 2026-06-29
 
 ## Current Milestone
 
-`v0.8.0 Native Foundation`
+`v0.9.0 Native Hot-Loop Parity` in progress
 
 ## Source Baseline
 
@@ -25,10 +25,12 @@ Date: 2026-06-29
 - Native wheel CI now installs the built wheel and runs the architecture doctor gate.
 - Added public-data selected-dump evidence gates and deterministic hot-loop benchmark probes.
 - Updated Intel macOS CI coverage to use the current `macos-15-intel` runner label.
+- Added the first native CPU hot-loop parity target: Rust `blackhole_native.stokes_rk2_brick()` for RK2 Stokes stepping over coefficient-brick cells, with Python reference fallback.
+- Extended `blackhole-benchmark --json` to report Python reference and native timing for the Stokes RK2 brick workload.
 
 ## Release Boundary
 
-This milestone does not publish PyPI packages, signed apps, notarized macOS builds, or full native physics parity claims.
+This milestone does not publish PyPI packages, signed apps, notarized macOS builds, GPU physics parity claims, or full native renderer parity claims.
 
 ## Required Validation
 
@@ -38,11 +40,13 @@ python -m compileall blackhole_sim
 python -m pytest -q
 blackhole-accelerators list --json
 blackhole-accelerators doctor --json --fail-on-emulation
+blackhole-benchmark --json --nr 3 --ntheta 3 --nphi 3 --iterations 1
 blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_smoke.npz
 cd ..
 cargo fmt --check --manifest-path native/core/Cargo.toml
 cargo test --manifest-path native/core/Cargo.toml
 maturin build --manifest-path native/core/Cargo.toml --release
+python -m pytest -q python/tests/test_native_stokes_parity.py
 ```
 
 ## Local Validation Evidence
@@ -62,6 +66,17 @@ Run on Windows 11 ARM64 with Python 3.14.3 ARM64:
 - `cargo +stable-aarch64-pc-windows-msvc test --manifest-path native/core/Cargo.toml`: passed inside the VS 2022 ARM64 developer environment.
 - `maturin build --manifest-path native/core/Cargo.toml --release --target aarch64-pc-windows-msvc --out native/core/target/wheels-msvc`: passed and produced `blackhole_native-0.8.0-cp310-abi3-win_arm64.whl`.
 - `blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_review_smoke.npz`: passed; output is ignored and not committed.
+
+v0.9.0 local parity evidence:
+
+- `python -m pip install -e .\python`: passed and installed `blackhole-sim 0.9.0`.
+- `maturin build --manifest-path native/core/Cargo.toml --release`: passed and produced `blackhole_native-0.9.0-cp310-abi3-win_arm64.whl`.
+- `python -m pip install --force-reinstall native/core/target/wheels-v090/blackhole_native-0.9.0-cp310-abi3-win_arm64.whl`: passed; `blackhole_native.core_version()` returned `0.9.0` and `stokes_rk2_brick` is present.
+- `python -m pytest -q tests/test_native_stokes_parity.py tests/test_benchmark.py`: passed; native parity test executed with the installed wheel.
+- `python -m pytest -q`: passed with optional skips.
+- `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 3 --iterations 1`: passed; schema is `blackhole_sim.benchmark.v2`, native Stokes RK2 parity reported `allclose=true`, `max_abs_diff=0.0`, and `native_available=true`.
+- `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
+- `blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_v090_smoke.npz`: passed; output is ignored and not committed.
 
 ## GitHub CI Evidence
 

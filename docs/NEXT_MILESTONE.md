@@ -1,12 +1,12 @@
-# Next Milestone: v0.9 Native Hot-Loop Parity
+# Active Milestone: v0.9 Native Hot-Loop Parity
 
 ## Goal
 
-Move the first deterministic hot-loop workload from Python into Rust native CPU code without changing public simulator behavior. The first target should be the coefficient-brick or small Stokes workload because it already has benchmark and smoke-test coverage.
+Move deterministic hot-loop workloads from Python into Rust native CPU code without changing public simulator behavior. The first target is RK2 Stokes stepping over coefficient-brick cells because it has a compact 11-coefficient contract and stable Python reference math.
 
 ## Required Work
 
-- Add a Rust native CPU implementation behind the existing Python orchestration path.
+- Add Rust native CPU implementations behind the existing Python orchestration path.
 - Keep the Python implementation as the reference and fallback.
 - Add regression tests that compare native output against the accepted Python envelope.
 - Extend `blackhole-benchmark --json` so it reports reference versus native timings on the same workload.

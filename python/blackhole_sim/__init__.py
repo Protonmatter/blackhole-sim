@@ -45,6 +45,7 @@ from .accelerated_renderer import (
     render_progressive_stokes_bricks,
     sample_coefficient_brick,
 )
+from .native_kernels import stokes_rk2_brick, stokes_rk2_brick_reference, native_stokes_rk2_available
 
 __all__ = [
     "critical_impact_parameter",
@@ -90,6 +91,9 @@ __all__ = [
     "render_stokes_image_bricks",
     "render_progressive_stokes_bricks",
     "sample_coefficient_brick",
+    "stokes_rk2_brick",
+    "stokes_rk2_brick_reference",
+    "native_stokes_rk2_available",
 ]
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"

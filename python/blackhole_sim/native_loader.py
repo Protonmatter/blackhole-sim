@@ -17,6 +17,12 @@ def _load_native_module() -> ModuleType | None:
         return None
 
 
+def load_native_module() -> ModuleType | None:
+    """Return the optional native module when importable, otherwise ``None``."""
+
+    return _load_native_module()
+
+
 def _module_path(module: ModuleType) -> str:
     value = getattr(module, "__file__", None)
     return str(Path(value).resolve()) if value else ""

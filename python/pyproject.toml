@@ -1,6 +1,6 @@
 [project]
 name = "blackhole-sim"
-version = "0.8.0"
+version = "0.9.0"
 description = "Kerr GRMHD/GRRT black-hole simulator with native foundation probes, polarized transfer, public dump validation, and GPU/WebGPU kernel assets"
 readme = "README.md"
 requires-python = ">=3.10"

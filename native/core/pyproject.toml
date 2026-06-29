@@ -4,8 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "blackhole-native"
-version = "0.8.0"
-description = "Native architecture probe scaffold for blackhole-sim"
+version = "0.9.0"
+description = "Native architecture probe and hot-loop parity scaffold for blackhole-sim"
 requires-python = ">=3.10"
 
 [tool.maturin]
