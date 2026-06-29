@@ -9,12 +9,52 @@ const params = new URLSearchParams(location.search);
 shaderSelect.value = params.get('shader') === 'volume' ? 'volume' : (params.get('shader') === 'stokes' ? 'stokes' : 'disk');
 shaderSelect.addEventListener('change', () => { const next = new URL(location.href); next.searchParams.set('shader', shaderSelect.value); location.href = next.toString(); });
 for (const input of Object.values(sliders)) { const out = input.parentElement.querySelector('output'); const sync = () => { out.value = input.value; }; input.addEventListener('input', sync); sync(); }
-if (!navigator.gpu) { statusEl.textContent = 'WebGPU unavailable'; throw new Error('WebGPU unavailable'); }
-const adapter = await navigator.gpu.requestAdapter();
-const device = await adapter.requestDevice();
-const context = canvas.getContext('webgpu');
-const format = navigator.gpu.getPreferredCanvasFormat();
-context.configure({ device, format, alphaMode: 'opaque' });
+let device = null;
+let context = null;
+let format = null;
+let webgpuReady = false;
+
+function showWebGPUFallback(message) {
+  statusEl.textContent = message;
+  const draw = () => {
+    resize();
+    const fallback = canvas.getContext('2d');
+    if (!fallback) return;
+    fallback.fillStyle = '#050508';
+    fallback.fillRect(0, 0, canvas.width, canvas.height);
+    fallback.fillStyle = '#dce6f2';
+    fallback.font = `${Math.max(14, Math.floor(canvas.width / 42))}px system-ui, sans-serif`;
+    fallback.fillText(message, 24, 44);
+    fallback.fillStyle = '#9fb0c2';
+    fallback.font = `${Math.max(12, Math.floor(canvas.width / 58))}px system-ui, sans-serif`;
+    fallback.fillText('Use a WebGPU-capable browser over localhost for the GPU renderer.', 24, 76);
+  };
+  window.addEventListener('resize', draw);
+  draw();
+}
+
+if (!navigator.gpu) {
+  showWebGPUFallback('WebGPU unavailable');
+} else {
+  const adapter = await navigator.gpu.requestAdapter().catch(() => null);
+  if (!adapter) {
+    showWebGPUFallback('WebGPU adapter unavailable');
+  } else {
+    device = await adapter.requestDevice().catch(() => null);
+    if (!device) {
+      showWebGPUFallback('WebGPU device request failed');
+    } else {
+      context = canvas.getContext('webgpu');
+      if (!context) {
+        showWebGPUFallback('WebGPU canvas context unavailable');
+      } else {
+        format = navigator.gpu.getPreferredCanvasFormat();
+        context.configure({ device, format, alphaMode: 'opaque' });
+        webgpuReady = true;
+      }
+    }
+  }
+}
 
 function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 2); const w = Math.max(1, Math.floor(canvas.clientWidth * dpr)); const h = Math.max(1, Math.floor(canvas.clientHeight * dpr)); if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; return true; } return false; }
 window.addEventListener('resize', resize);
@@ -71,4 +111,6 @@ async function runFragmentRenderer() {
 }
 
 resize();
-if (shaderSelect.value === 'stokes') runStokesRenderer(); else runFragmentRenderer();
+if (webgpuReady) {
+  if (shaderSelect.value === 'stokes') runStokesRenderer(); else runFragmentRenderer();
+}

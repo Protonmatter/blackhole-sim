@@ -6,10 +6,12 @@
       "citation": "Dhruv, Prather, Wong & Gammie, ApJS 277, 16; arXiv:2411.12647",
       "collection": "Illinois Simulation Data Products v3 GRMHD Output",
       "direct_download_url": null,
+      "accepted_ranges": {},
       "expected_suffixes": [
         ".h5",
         ".hdf5"
       ],
+      "expected_field_map": {},
       "flux_state": "SANE",
       "id": "illinois_v3_grmhd_sane_a+0.50_selected_dump",
       "landing_page": "https://thz.astro.illinois.edu/v3_grmhd.html",
@@ -20,7 +22,8 @@
       },
       "notes": "Select a concrete v3 SANE, a*=+0.5 HDF5 dump from the portal, then pass its final file URL to blackhole-public-dump --download-url. The portal is JavaScript-filtered, so direct file URLs are intentionally not hard-coded.",
       "sha256": null,
-      "spin_a": 0.5
+      "spin_a": 0.5,
+      "validation_status": "collection_only"
     }
   ],
   "schema": "blackhole_sim.public_grmhd_manifest.v1"

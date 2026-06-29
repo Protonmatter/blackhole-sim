@@ -1,6 +1,6 @@
 # Interactive Kerr Black-Hole Simulation Showcase
 
-This package wraps the v0.7 simulator in a guided browser session.
+This package wraps the v0.7 simulator assets in a guided browser session.
 
 ## Start the session
 
@@ -28,7 +28,7 @@ http://localhost:8080/showcase/
 - A link into the actual v0.7 WebGPU Stokes renderer:
 
 ```text
-http://localhost:8080/simulator/webgpu/index.html?shader=stokes
+http://localhost:8080/webgpu/index.html?shader=stokes
 ```
 
 ## Important boundary
@@ -36,18 +36,18 @@ http://localhost:8080/simulator/webgpu/index.html?shader=stokes
 The guided canvas is a presentation/demo layer. The actual hot-loop implementation is in:
 
 ```text
-simulator/webgpu/src/stokes_brick_compute.wgsl
-simulator/native/cuda/kerr_stokes_kernel.cu
-simulator/native/metal/kerr_stokes_kernel.metal
-simulator/native/rocm/kerr_stokes_kernel.hip
-simulator/native/opencl/kerr_stokes_kernel.cl
+web/webgpu/src/stokes_brick_compute.wgsl
+native/cuda/kerr_stokes_kernel.cu
+native/metal/kerr_stokes_kernel.metal
+native/rocm/kerr_stokes_kernel.hip
+native/opencl/kerr_stokes_kernel.cl
 ```
 
 Use the guided session to explain the physics and performance tradeoffs. Use the WebGPU renderer and Python CLIs for implementation validation.
 
 ## CLI smoke tests
 
-From `simulator/`:
+From `python/`:
 
 ```bash
 python -m venv .venv

@@ -22,6 +22,7 @@ from .grmhd import GRMHDSnapshot
 from .grmhd_adapters import AdaptedSnapshot, load_bhac_hdf5, load_harm_hdf5, load_koral_hdf5, list_hdf5_datasets
 
 AdapterName = Literal["harm", "koral", "bhac"]
+ValidationStatus = Literal["collection_only", "selected_dump_verified"]
 
 
 @dataclass(frozen=True)
@@ -40,12 +41,34 @@ class PublicDumpDescriptor:
     direct_download_url: str | None = None
     sha256: str | None = None
     expected_suffixes: tuple[str, ...] = (".h5", ".hdf5")
+    validation_status: ValidationStatus = "collection_only"
+    expected_field_map: dict[str, str] = field(default_factory=dict)
+    accepted_ranges: dict[str, tuple[float, float]] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_json_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["expected_suffixes"] = list(self.expected_suffixes)
+        d["accepted_ranges"] = {k: list(v) for k, v in self.accepted_ranges.items()}
         return d
+
+    def selected_dump_gate_issues(self) -> tuple[str, ...]:
+        """Return missing evidence for descriptors that claim a concrete dump."""
+
+        if self.direct_download_url is None:
+            return ()
+        issues: list[str] = []
+        if self.validation_status != "selected_dump_verified":
+            issues.append("validation_status must be selected_dump_verified for direct downloads")
+        if not self.sha256:
+            issues.append("sha256 is required for direct downloads")
+        if not self.expected_field_map:
+            issues.append("expected_field_map is required for direct downloads")
+        required_ranges = {"rho", "theta_e"}
+        missing_ranges = sorted(required_ranges.difference(self.accepted_ranges))
+        if missing_ranges:
+            issues.append(f"accepted_ranges missing: {', '.join(missing_ranges)}")
+        return tuple(issues)
 
 
 ILLINOIS_V3_DESCRIPTOR = PublicDumpDescriptor(
@@ -92,6 +115,7 @@ def load_public_manifest(path: str | Path) -> list[PublicDumpDescriptor]:
     for item in payload.get("entries", []):
         item = dict(item)
         item["expected_suffixes"] = tuple(item.get("expected_suffixes", (".h5", ".hdf5")))
+        item["accepted_ranges"] = {k: tuple(v) for k, v in item.get("accepted_ranges", {}).items()}
         out.append(PublicDumpDescriptor(**item))
     return out
 

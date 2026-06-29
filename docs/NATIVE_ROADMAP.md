@@ -33,4 +33,6 @@ Do not move the Kerr geodesic integrator into inference runtimes first. The core
 - `blackhole-accelerators doctor --fail-on-emulation` must pass on native hardware.
 - Native core architecture must match the process architecture when the native module is installed.
 - A small deterministic Stokes render must match the accepted regression envelope.
+- Native wheel CI must install the built wheel and run the doctor gate on the target runner.
+- Performance claims must include a `blackhole-benchmark --json` baseline and a matching native regression comparison.
 - Surface Pro 11 ARM64 validation must use ARM64 Python, ARM64 native modules, and no x64 runtime.

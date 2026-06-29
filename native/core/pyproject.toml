@@ -11,3 +11,4 @@ requires-python = ">=3.10"
 [tool.maturin]
 manifest-path = "Cargo.toml"
 module-name = "blackhole_native"
+features = ["extension-module"]

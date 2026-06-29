@@ -163,15 +163,7 @@ blackhole-regression --reference out/cpu_reference.npz
 
 ## Test status in this package
 
-New validation-layer tests pass:
-
-```text
-8 passed
-```
-
-Those cover manifest round-trip, SHA-256 checks, local HDF5 adapter verification, `ipole` parameter generation, `ipole` image orientation handling, Stokes comparison metrics, and comparison-report generation.
-
-The previous v0.4.0 package had 28 passing tests across Kerr geometry, GRMHD interpolation, polarized transfer, synchrotron coefficients, and WebGPU regression hooks. In this runtime, the full expanded suite started successfully but exceeded the available execution window before completion, so the conservative claim for this package is targeted validation-layer success plus retained v0.4.0 code.
+The current validation suite covers Kerr geometry, GRMHD interpolation and adapters, public-dump provenance gates, polarized transfer, synchrotron coefficients, WebGPU asset hooks, native platform probes, and the accelerated coefficient-brick renderer. Use the root `docs/BUILD_STATE.md` file for the latest local validation evidence.
 
 ## v0.6.0 GPU/WebGPU/native acceleration layer
 
@@ -200,6 +192,7 @@ Quick memory estimate without computing coefficients:
 
 ```bash
 blackhole-precompute-bricks --estimate-only --stride 2 --dtype float16
+blackhole-benchmark --json --nr 8 --ntheta 6 --nphi 8 --iterations 1
 ```
 
 ### Backend policy

@@ -8,7 +8,7 @@ This repository is intentionally split into portable orchestration, native hot-l
 python/       Python package, CLIs, tests, examples, public dump tooling
 native/       CUDA/Metal/HIP/OpenCL kernel assets plus Rust/PyO3 core scaffold
 web/          WebGPU renderer and guided browser showcase
-docs/         build state, native roadmap, operational notes
+docs/         build state, native roadmap, data validation, performance notes
 ```
 
 ## Install
@@ -31,6 +31,7 @@ python -m pytest -q
 blackhole-accelerators list --json
 blackhole-accelerators doctor --json --fail-on-emulation
 blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_smoke.npz
+blackhole-benchmark --json --nr 8 --ntheta 6 --nphi 8 --iterations 1
 ```
 
 Rust scaffold checks:

@@ -1,6 +1,6 @@
 # Build State
 
-Date: 2026-06-28
+Date: 2026-06-29
 
 ## Current Milestone
 
@@ -21,6 +21,9 @@ Date: 2026-06-28
 - Added Python platform probe and native loader.
 - Added Rust/PyO3 `blackhole_native` scaffold.
 - Added CI workflows for Python, Rust, native wheel smoke builds, and architecture reports.
+- Hardened PyO3 feature selection so plain `cargo test` does not build the extension-module flavor on macOS.
+- Native wheel CI now installs the built wheel and runs the architecture doctor gate.
+- Added public-data selected-dump evidence gates and deterministic hot-loop benchmark probes.
 
 ## Release Boundary
 
@@ -55,15 +58,21 @@ Run on Windows 11 ARM64 with Python 3.14.3 ARM64:
 - `cargo fmt --check --manifest-path native/core/Cargo.toml`: passed using the repo-local `stable-aarch64-pc-windows-gnullvm` override.
 - `cargo test --manifest-path native/core/Cargo.toml`: passed using the repo-local `stable-aarch64-pc-windows-gnullvm` override.
 - `maturin build --manifest-path native/core/Cargo.toml --release --out native/core/target/wheels-local`: passed and produced `blackhole_native-0.8.0-cp310-abi3-win_arm64.whl`.
+- `cargo +stable-aarch64-pc-windows-msvc test --manifest-path native/core/Cargo.toml`: passed inside the VS 2022 ARM64 developer environment.
+- `maturin build --manifest-path native/core/Cargo.toml --release --target aarch64-pc-windows-msvc --out native/core/target/wheels-msvc`: passed and produced `blackhole_native-0.8.0-cp310-abi3-win_arm64.whl`.
+- `blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_review_smoke.npz`: passed; output is ignored and not committed.
 
 Blocked locally:
 
-- MSVC-native local builds are still unavailable because Visual Studio Build Tools failed to install non-interactively with exit code `1602`.
-- `gh auth status`: GitHub CLI is installed, but no GitHub host is authenticated yet.
+- No local native-toolchain blocker is currently known for Windows ARM64.
+- GitHub Native Core CI still requires the updated workflow to be pushed and re-run before release use.
 
 ## Local Toolchain Notes
 
 - Installed GitHub CLI `2.95.0`.
+- Authenticated `gh` as `Protonmatter` for HTTPS Git operations.
+- Created and pushed public GitHub repo `Protonmatter/blackhole-sim`.
+- Installed Visual Studio Build Tools 2022 `17.14.35` with ARM64 MSVC and Windows 11 SDK 26100 components.
 - Installed Rustup and Rust `1.96.0`.
 - Installed `maturin 1.14.1`.
 - Installed `blackhole-sim` editable into the Python 3.14 ARM64 user environment.

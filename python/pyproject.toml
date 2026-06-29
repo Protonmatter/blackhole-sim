@@ -25,6 +25,7 @@ blackhole-external-validation = "blackhole_sim.external_validation_cli:main"
 blackhole-accelerators = "blackhole_sim.accelerator_cli:main"
 blackhole-precompute-bricks = "blackhole_sim.coefficient_bricks_cli:main"
 blackhole-render-accelerated = "blackhole_sim.accelerated_cli:main"
+blackhole-benchmark = "blackhole_sim.benchmark_cli:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

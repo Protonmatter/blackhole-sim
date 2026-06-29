@@ -15,6 +15,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--download-url", help="Concrete HDF5 file URL selected from a public data portal")
     p.add_argument("--download-output", type=Path, default=Path("data/public/selected_dump.h5"))
     p.add_argument("--sha256")
+    p.add_argument("--allow-unverified-download", action="store_true", help="Allow a download without SHA-256 evidence for local exploration only")
     p.add_argument("--verify", type=Path, help="Downloaded HDF5 dump to inspect and adapt")
     p.add_argument("--adapter", choices=("harm", "koral", "bhac"), default="harm")
     p.add_argument("--report", type=Path, default=Path("out/public_dump_verification.json"))
@@ -25,6 +26,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"wrote manifest {path}")
 
     if args.download_url:
+        if not args.sha256 and not args.allow_unverified_download:
+            raise SystemExit("--sha256 is required for reproducible public-dump downloads; use --allow-unverified-download for local exploration")
         path = download_public_dump(args.download_url, args.download_output, expected_sha256=args.sha256)
         print(f"downloaded {path}")
 

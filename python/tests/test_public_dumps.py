@@ -5,6 +5,8 @@ import pytest
 
 from blackhole_sim.grmhd import generate_analytic_grmhd_torus
 from blackhole_sim.public_dumps import (
+    DEFAULT_PUBLIC_MANIFEST,
+    PublicDumpDescriptor,
     download_public_dump,
     load_public_manifest,
     sha256_file,
@@ -20,6 +22,7 @@ def test_public_manifest_round_trip(tmp_path: Path):
     assert entries[0].collection.startswith("Illinois")
     assert entries[0].adapter == "harm"
     assert entries[0].landing_page.startswith("https://")
+    assert entries[0].validation_status == "collection_only"
 
 
 def test_sha256_file(tmp_path: Path):
@@ -45,3 +48,40 @@ def test_verify_public_dump_canonical_hdf5(tmp_path: Path):
     assert report.adapter == "harm"
     assert report.spin_a == pytest.approx(0.5)
     assert "rho" in report.field_map
+
+
+def test_collection_only_manifest_does_not_claim_selected_dump_validation():
+    for entry in DEFAULT_PUBLIC_MANIFEST:
+        assert entry.direct_download_url is None
+        assert entry.validation_status == "collection_only"
+        assert entry.selected_dump_gate_issues() == ()
+
+
+def test_selected_dump_descriptor_requires_reproducibility_evidence():
+    descriptor = PublicDumpDescriptor(
+        id="example",
+        collection="Example",
+        landing_page="https://example.com",
+        citation="example",
+        license="example",
+        direct_download_url="https://example.com/dump.h5",
+        validation_status="selected_dump_verified",
+    )
+    issues = descriptor.selected_dump_gate_issues()
+    assert any("sha256" in issue for issue in issues)
+    assert any("expected_field_map" in issue for issue in issues)
+    assert any("accepted_ranges" in issue for issue in issues)
+
+    verified = PublicDumpDescriptor(
+        id="example",
+        collection="Example",
+        landing_page="https://example.com",
+        citation="example",
+        license="example",
+        direct_download_url="https://example.com/dump.h5",
+        sha256="a" * 64,
+        validation_status="selected_dump_verified",
+        expected_field_map={"rho": "rho", "theta_e": "theta_e", "u_con": "u_con", "b_con": "b_con"},
+        accepted_ranges={"rho": (1.0e-12, 10.0), "theta_e": (1.0e-3, 1.0e3)},
+    )
+    assert verified.selected_dump_gate_issues() == ()

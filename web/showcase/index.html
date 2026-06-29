@@ -45,7 +45,7 @@
     <h1>Interactive Kerr black-hole showcase</h1>
     <p>This session demonstrates the v0.7 architecture: Kerr/spin controls, observer inclination, coefficient-brick style transfer controls, progressive render profiles, and a link into the actual WebGPU Stokes renderer.</p>
     <div class="status">
-      <span class="pill" id="gpuStatus">WebGPU: checking…</span>
+      <span class="pill" id="gpuStatus">WebGPU: checking...</span>
       <span class="pill" id="profileStatus">Profile: desktop preview</span>
     </div>
 
@@ -81,20 +81,20 @@
       <button id="fallbackMode">Show guided fallback</button>
       <button id="webgpuMode">Open WebGPU Stokes</button>
       <button id="snapshot" class="wide">Save current preview PNG</button>
-      <a class="button wide" href="../simulator/webgpu/index.html?shader=stokes" target="_blank">Open actual v0.7 WebGPU renderer in new tab</a>
+      <a class="button wide" href="../webgpu/index.html?shader=stokes" target="_blank">Open actual v0.7 WebGPU renderer in new tab</a>
     </div>
-    <p class="note">The guided canvas is a fast visual session layer. The actual v0.7 WGSL/CUDA/Metal/HIP kernels are in the included simulator folder.</p>
+    <p class="note">The guided canvas is a fast visual session layer. The actual v0.7 WGSL/CUDA/Metal/HIP kernels are in the included webgpu folder.</p>
   </aside>
 
   <section class="stage" id="stage">
     <canvas id="view"></canvas>
-    <iframe id="webgpuFrame" src="../simulator/webgpu/index.html?shader=stokes"></iframe>
+    <iframe id="webgpuFrame" src="../webgpu/index.html?shader=stokes"></iframe>
     <div class="metrics">
       <div><span>render mode</span><strong id="modeMetric">guided canvas</strong></div>
-      <div><span>target pixels</span><strong id="pixelMetric">—</strong></div>
-      <div><span>ray steps</span><strong id="stepMetric">—</strong></div>
-      <div><span>approx work</span><strong id="workMetric">—</strong></div>
-      <div><span>recommended backend</span><strong id="backendMetric">—</strong></div>
+      <div><span>target pixels</span><strong id="pixelMetric">-</strong></div>
+      <div><span>ray steps</span><strong id="stepMetric">-</strong></div>
+      <div><span>approx work</span><strong id="workMetric">-</strong></div>
+      <div><span>recommended backend</span><strong id="backendMetric">-</strong></div>
     </div>
     <div class="footer"><span>v0.7 showcase session</span><span>Kerr + coefficient bricks + Stokes transfer + progressive GPU path</span></div>
   </section>
@@ -209,7 +209,7 @@ function updateMetrics(){
   if (profile.includes('Intel')) { width=1280; height=720; backend='WebGPU / Arc / OpenCL'; }
   if (profile.includes('CUDA')) { width=1920; height=1080; backend='CUDA'; }
   const pix = width * height;
-  document.getElementById('pixelMetric').textContent = width + '×' + height;
+  document.getElementById('pixelMetric').textContent = width + 'x' + height;
   document.getElementById('stepMetric').textContent = steps.toLocaleString();
   document.getElementById('workMetric').textContent = (pix * steps / 1e6).toFixed(1) + 'M ray-steps';
   document.getElementById('backendMetric').textContent = backend;
@@ -236,7 +236,7 @@ function setStep(n){ currentStep = Math.max(0, Math.min(3, n)); document.querySe
 document.getElementById('prevStep').onclick = () => setStep(currentStep - 1);
 document.getElementById('nextStep').onclick = () => setStep(currentStep + 1);
 document.getElementById('fallbackMode').onclick = () => { stage.classList.remove('webgpu-mode'); document.getElementById('modeMetric').textContent='guided canvas'; };
-document.getElementById('webgpuMode').onclick = () => { stage.classList.add('webgpu-mode'); document.getElementById('modeMetric').textContent='actual WebGPU iframe'; webgpuFrame.src='../simulator/webgpu/index.html?shader=stokes'; };
+document.getElementById('webgpuMode').onclick = () => { stage.classList.add('webgpu-mode'); document.getElementById('modeMetric').textContent='actual WebGPU iframe'; webgpuFrame.src='../webgpu/index.html?shader=stokes'; };
 document.getElementById('snapshot').onclick = () => { const a=document.createElement('a'); a.download='blackhole_showcase_preview.png'; a.href=canvas.toDataURL('image/png'); a.click(); };
 
 requestAnimationFrame(render);
