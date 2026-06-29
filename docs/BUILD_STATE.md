@@ -89,6 +89,14 @@ Validated on commit `46f20630f41556dce75cb6142a54ff816185c54a`:
 - Earlier queued `macos-13` runs were cancelled after replacing that retired label with `macos-15-intel`.
 - Architecture Report is now configured as an automatic `push` gate on `main`, matching the Python and Native Core workflows.
 
+v0.9.0 parity target validated on commit `215769ef09682f423f02a0c8be51ebc40736e47f`:
+
+- `Architecture Report` run `28365345475`: passed.
+- `Python` run `28365345461`: passed.
+- `Native Core` run `28365345460`: passed, including post-wheel `python/tests/test_native_stokes_parity.py`.
+- CI artifact smoke: downloaded `native-wheel-windows-11-arm` from run `28365345460`, installed `blackhole_native-0.9.0-cp310-abi3-win_arm64.whl` into a clean temporary venv, and ran `blackhole-accelerators doctor --json --fail-on-emulation`; passed with `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
+- CI artifact benchmark smoke: `blackhole-benchmark --target stokes-rk2-brick --json --nr 3 --ntheta 3 --nphi 3 --iterations 1` passed with `native_available=true`, `allclose=true`, `max_abs_diff=0.0`, and `max_rel_diff=0.0`.
+
 Blocked locally:
 
 - No local native-toolchain blocker is currently known for Windows ARM64.
