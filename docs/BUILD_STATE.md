@@ -30,6 +30,7 @@ Date: 2026-06-29
 - Added Rust `blackhole_native.sample_brick_trilinear()` for deterministic trilinear coefficient-brick sampling, with Python reference fallback.
 - Added Rust `blackhole_native.sample_and_step_stokes()` as the first composed sampler-plus-RK2 micro-kernel.
 - Out-of-range nonperiodic sampler points now return explicit `NaN` coefficient vectors rather than valid-looking zero vectors; periodic `phi` wrapping remains over a `2*pi` domain.
+- Added Python `sample_brick_valid_mask(...)` and `sample_and_step_stokes(..., invalid_policy=...)` so downstream renderer integration can keep, replace with initial Stokes values, or zero invalid nonperiodic rows intentionally.
 - Extended `blackhole-benchmark --json` to report Python reference and native timing for the coefficient sampler workload, including backend, architecture, grid size, point count, and parity error.
 - Native wheel CI now runs sampler parity tests after wheel install, alongside Stokes RK2 parity.
 
@@ -110,6 +111,20 @@ v0.9.0 sampler invalid-domain fix local evidence:
 - `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1`: passed; schema is `blackhole_sim.benchmark.v2` and includes sampler plus Stokes native parity payloads.
 - `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
 - `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out\stokes_sampler_nan_smoke.npz`: passed; output is ignored and not committed.
+
+v0.9.0 sampler invalid-row policy local evidence:
+
+- `python -m compileall blackhole_sim`: passed.
+- `cargo fmt --check --manifest-path native/core/Cargo.toml`: passed.
+- `cargo test --manifest-path native/core/Cargo.toml`: passed.
+- `python -m pytest -q tests/test_native_sampler_parity.py tests/test_native_stokes_parity.py tests/test_benchmark.py`: passed; sampler tests cover `sample_brick_valid_mask(...)`, default `nan`, `initial`, and `zero` invalid-sample policies.
+- `maturin build --manifest-path native/core/Cargo.toml --release --out native/core/target/wheels-v090-invalid-policy`: passed and produced `blackhole_native-0.9.0-cp310-abi3-win_arm64.whl`.
+- `python -m pip install --force-reinstall native\core\target\wheels-v090-invalid-policy\blackhole_native-0.9.0-cp310-abi3-win_arm64.whl`: passed.
+- `python -m pytest -q`: passed with optional skips.
+- `python -m blackhole_sim.benchmark_cli --target sample-brick-trilinear --json --nr 4 --ntheta 3 --nphi 5 --points 16 --iterations 2`: passed; native sampler parity reported `allclose=true`, `max_abs_diff=0.0`, `max_rel_diff=0.0`, `native_available=true`, and `process_arch=arm64`.
+- `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1`: passed; schema is `blackhole_sim.benchmark.v2` and includes sampler plus Stokes native parity payloads.
+- `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
+- `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out\stokes_invalid_policy_smoke.npz`: passed; output is ignored and not committed.
 
 ## GitHub CI Evidence
 

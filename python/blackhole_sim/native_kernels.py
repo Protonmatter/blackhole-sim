@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -13,6 +13,7 @@ STOKES_RK2_RTOL = 1.0e-12
 STOKES_RK2_ATOL = 1.0e-12
 SAMPLE_BRICK_TRILINEAR_RTOL = 1.0e-12
 SAMPLE_BRICK_TRILINEAR_ATOL = 1.0e-12
+InvalidSamplePolicy = Literal["nan", "initial", "zero"]
 
 
 def deterministic_stokes_coefficients(
@@ -123,6 +124,12 @@ def _validate_ds(ds_cm: float) -> float:
     return ds_value
 
 
+def _coerce_invalid_sample_policy(policy: InvalidSamplePolicy) -> InvalidSamplePolicy:
+    if policy not in {"nan", "initial", "zero"}:
+        raise ValueError("invalid_policy must be 'nan', 'initial', or 'zero'")
+    return policy
+
+
 def _wrap_phi(phi: float, base: float = 0.0) -> float:
     return float(((phi - base) % (2.0 * math.pi)) + base)
 
@@ -177,6 +184,30 @@ def _sample_one(coeffs: np.ndarray, r_grid: np.ndarray, theta_grid: np.ndarray, 
     c0 = (1.0 - wt) * c00 + wt * c01
     c1 = (1.0 - wt) * c10 + wt * c11
     return np.ascontiguousarray((1.0 - wr) * c0 + wr * c1)
+
+
+def sample_brick_valid_mask(
+    r_grid: np.ndarray | Any,
+    theta_grid: np.ndarray | Any,
+    points: np.ndarray | Any,
+) -> np.ndarray:
+    """Return True for sample points inside the nonperiodic r/theta domain.
+
+    ``phi`` is intentionally ignored here because sampler ``phi`` coordinates
+    are periodic. The returned mask is the integration contract downstream
+    renderers should use before deciding whether to keep, terminate, or replace
+    an invalid sample.
+    """
+
+    rg = _coerce_grid("r", r_grid)
+    tg = _coerce_grid("theta", theta_grid)
+    point_arr = _coerce_points(points)
+    return np.ascontiguousarray(
+        (point_arr[:, 0] >= rg[0])
+        & (point_arr[:, 0] <= rg[-1])
+        & (point_arr[:, 1] >= tg[0])
+        & (point_arr[:, 1] <= tg[-1])
+    )
 
 
 def _stokes_rhs(stokes: np.ndarray, coeffs: np.ndarray) -> np.ndarray:
@@ -299,17 +330,24 @@ def sample_and_step_stokes_reference(
     points: np.ndarray | Any,
     ds_cm: float,
     initial: np.ndarray | Any | None = None,
+    invalid_policy: InvalidSamplePolicy = "nan",
 ) -> np.ndarray:
     """Python reference for sampling a coefficient brick and applying one RK2 Stokes step."""
 
     coeff_arr, rg, tg, pg, point_arr = _coerce_sampler_inputs(coeffs, r_grid, theta_grid, phi_grid, points)
     ds_value = _validate_ds(ds_cm)
+    policy = _coerce_invalid_sample_policy(invalid_policy)
     initial_arr = _coerce_initial(initial, (int(point_arr.shape[0]),))
     sampled = sample_brick_trilinear_reference(coeff_arr, rg, tg, pg, point_arr)
     out = np.full((int(point_arr.shape[0]), 4), np.nan, dtype=np.float64)
-    valid = np.all(np.isfinite(sampled), axis=1)
+    valid = sample_brick_valid_mask(rg, tg, point_arr)
     if np.any(valid):
         out[valid] = stokes_rk2_brick_reference(sampled[valid], ds_value, initial_arr[valid])
+    if np.any(~valid):
+        if policy == "initial":
+            out[~valid] = initial_arr[~valid]
+        elif policy == "zero":
+            out[~valid] = 0.0
     return np.ascontiguousarray(out)
 
 
@@ -328,12 +366,15 @@ def sample_and_step_stokes(
     initial: np.ndarray | Any | None = None,
     *,
     prefer_native: bool = True,
+    invalid_policy: InvalidSamplePolicy = "nan",
 ) -> np.ndarray:
     """Sample a coefficient brick and step Stokes values through native Rust when available."""
 
     coeff_arr, rg, tg, pg, point_arr = _coerce_sampler_inputs(coeffs, r_grid, theta_grid, phi_grid, points)
     ds_value = _validate_ds(ds_cm)
+    policy = _coerce_invalid_sample_policy(invalid_policy)
     initial_arr = _coerce_initial(initial, (int(point_arr.shape[0]),))
+    valid = sample_brick_valid_mask(rg, tg, point_arr)
     if prefer_native:
         module = load_native_module()
         native_fn = getattr(module, "sample_and_step_stokes", None) if module is not None else None
@@ -347,5 +388,20 @@ def sample_and_step_stokes(
                 ds_value,
                 initial_arr.ravel().tolist(),
             )
-            return np.asarray(raw, dtype=np.float64).reshape((int(point_arr.shape[0]), 4))
-    return sample_and_step_stokes_reference(coeff_arr, rg, tg, pg, point_arr, ds_value, initial_arr)
+            out = np.asarray(raw, dtype=np.float64).reshape((int(point_arr.shape[0]), 4))
+            if np.any(~valid):
+                if policy == "initial":
+                    out[~valid] = initial_arr[~valid]
+                elif policy == "zero":
+                    out[~valid] = 0.0
+            return np.ascontiguousarray(out)
+    return sample_and_step_stokes_reference(
+        coeff_arr,
+        rg,
+        tg,
+        pg,
+        point_arr,
+        ds_value,
+        initial_arr,
+        invalid_policy=policy,
+    )

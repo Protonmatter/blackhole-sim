@@ -18,6 +18,7 @@ Move deterministic hot-loop workloads from Python into Rust native CPU code with
 - Native and Python outputs match within documented deterministic tolerances.
 - Benchmark output includes platform, architecture, backend, workload size, iteration count, and elapsed time.
 - CI installs the native wheel and runs doctor plus the parity regression.
+- Batched ray-step integration uses the sampler validity mask or an explicit invalid-sample policy; invalid nonperiodic rows must not be silently treated as physical zero coefficients.
 - Surface Pro 11 ARM64 validation uses ARM64 Python and ARM64 native modules with no x64 emulation.
 
 ## Non-Goals

@@ -50,7 +50,7 @@ The v0.9 milestone keeps Python as the reference path while proving small native
 - `blackhole_native.sample_brick_trilinear()`
 - `blackhole_native.sample_and_step_stokes()`
 
-These are not full renderer parity or GPU physics parity claims. Native wheels still must pass architecture and parity gates on the target platform before any performance claim is made.
+Python exposes `sample_brick_valid_mask(...)` plus `sample_and_step_stokes(..., invalid_policy=...)` so downstream renderers can handle nonperiodic out-of-domain samples deterministically. These are not full renderer parity or GPU physics parity claims. Native wheels still must pass architecture and parity gates on the target platform before any performance claim is made.
 
 The release gate starts with:
 

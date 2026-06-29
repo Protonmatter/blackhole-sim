@@ -12,6 +12,7 @@ from blackhole_sim.native_kernels import (
     native_sample_brick_trilinear_available,
     sample_and_step_stokes,
     sample_and_step_stokes_reference,
+    sample_brick_valid_mask,
     sample_brick_trilinear,
     sample_brick_trilinear_reference,
     stokes_rk2_brick_reference,
@@ -82,6 +83,23 @@ def test_sample_brick_trilinear_reference_returns_nan_outside_r_theta():
     assert np.all(np.isnan(out))
 
 
+def test_sample_brick_valid_mask_filters_nonperiodic_domain_only():
+    _coeffs, r_grid, theta_grid, _phi_grid = _linear_coeff_fixture()
+    points = np.array(
+        [
+            [0.50, 0.50, 0.50],
+            [-0.10, 0.50, 0.50],
+            [0.50, 1.10, 0.50],
+            [0.50, 0.50, 100.0],
+        ],
+        dtype=np.float64,
+    )
+
+    mask = sample_brick_valid_mask(r_grid, theta_grid, points)
+
+    np.testing.assert_array_equal(mask, np.array([True, False, False, True]))
+
+
 def test_sample_brick_trilinear_reference_wraps_periodic_phi():
     coeffs, r_grid, theta_grid, phi_grid = _linear_coeff_fixture(nphi=4)
     base_point = np.array([[0.50, 0.50, math.pi / 4.0]], dtype=np.float64)
@@ -149,6 +167,51 @@ def test_sample_and_step_stokes_reference_matches_sampler_then_rk2():
     np.testing.assert_allclose(out, expected, rtol=STOKES_RK2_RTOL, atol=STOKES_RK2_ATOL, equal_nan=True)
 
 
+def test_sample_and_step_stokes_reference_invalid_policy_initial_and_zero():
+    coeffs, r_grid, theta_grid, phi_grid = _linear_coeff_fixture()
+    points = _sample_points()
+    initial = _initial(points.shape[0])
+
+    keep_initial = sample_and_step_stokes_reference(
+        coeffs,
+        r_grid,
+        theta_grid,
+        phi_grid,
+        points,
+        ds_cm=0.05,
+        initial=initial,
+        invalid_policy="initial",
+    )
+    zero = sample_and_step_stokes_reference(
+        coeffs,
+        r_grid,
+        theta_grid,
+        phi_grid,
+        points,
+        ds_cm=0.05,
+        initial=initial,
+        invalid_policy="zero",
+    )
+
+    valid = sample_brick_valid_mask(r_grid, theta_grid, points)
+    np.testing.assert_allclose(keep_initial[~valid], initial[~valid], rtol=0.0, atol=0.0)
+    np.testing.assert_array_equal(zero[~valid], np.zeros((int(np.sum(~valid)), 4), dtype=np.float64))
+
+
+def test_sample_and_step_stokes_rejects_unknown_invalid_policy():
+    coeffs, r_grid, theta_grid, phi_grid = _linear_coeff_fixture()
+    with pytest.raises(ValueError, match="invalid_policy"):
+        sample_and_step_stokes_reference(
+            coeffs,
+            r_grid,
+            theta_grid,
+            phi_grid,
+            _sample_points(),
+            ds_cm=0.05,
+            invalid_policy="break",  # type: ignore[arg-type]
+        )
+
+
 def test_native_sample_and_step_stokes_matches_reference_when_installed():
     if not native_sample_and_step_stokes_available():
         pytest.skip("blackhole_native.sample_and_step_stokes is not installed")
@@ -167,3 +230,43 @@ def test_native_sample_and_step_stokes_matches_reference_when_installed():
     native = sample_and_step_stokes(coeffs, r_grid, theta_grid, phi_grid, points, ds_cm=0.05, initial=initial, prefer_native=True)
 
     np.testing.assert_allclose(native, reference, rtol=STOKES_RK2_RTOL, atol=STOKES_RK2_ATOL, equal_nan=True)
+
+
+def test_native_sample_and_step_stokes_invalid_policy_matches_reference_when_installed():
+    if not native_sample_and_step_stokes_available():
+        pytest.skip("blackhole_native.sample_and_step_stokes is not installed")
+    coeffs, r_grid, theta_grid, phi_grid = _linear_coeff_fixture(nphi=4)
+    points = np.array(
+        [
+            [0.25, 0.50, math.pi / 4.0],
+            [-0.10, 0.50, math.pi / 4.0],
+            [0.50, 1.10, math.pi / 4.0],
+        ],
+        dtype=np.float64,
+    )
+    initial = _initial(points.shape[0])
+
+    for policy in ("initial", "zero"):
+        reference = sample_and_step_stokes_reference(
+            coeffs,
+            r_grid,
+            theta_grid,
+            phi_grid,
+            points,
+            ds_cm=0.05,
+            initial=initial,
+            invalid_policy=policy,
+        )
+        native = sample_and_step_stokes(
+            coeffs,
+            r_grid,
+            theta_grid,
+            phi_grid,
+            points,
+            ds_cm=0.05,
+            initial=initial,
+            prefer_native=True,
+            invalid_policy=policy,
+        )
+
+        np.testing.assert_allclose(native, reference, rtol=STOKES_RK2_RTOL, atol=STOKES_RK2_ATOL, equal_nan=True)
