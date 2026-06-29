@@ -65,13 +65,14 @@ Run on Windows 11 ARM64 with Python 3.14.3 ARM64:
 
 ## GitHub CI Evidence
 
-Validated on commit `11cff4080de4ffab79cecb55f3667d5be4ff4fac`:
+Validated on commit `46f20630f41556dce75cb6142a54ff816185c54a`:
 
-- `Python` run `28345824031`: passed.
-- `Native Core` run `28345824025`: passed.
-- `Architecture Report` run `28345830767`: passed.
-- CI artifact smoke: downloaded `native-wheel-windows-11-arm` from run `28345824025`, installed `blackhole_native-0.8.0-cp310-abi3-win_arm64.whl` into a clean temporary venv, and ran `blackhole-accelerators doctor --json --fail-on-emulation`; passed with `native_core_loaded=true`, `native_core_arch=arm64`, and `emulation_detected=false`.
+- `Python` run `28345975404`: passed.
+- `Native Core` run `28345975402`: passed.
+- `Architecture Report` run `28345986411`: passed.
+- CI artifact smoke: downloaded `native-wheel-windows-11-arm` from run `28345975402`, installed `blackhole_native-0.8.0-cp310-abi3-win_arm64.whl` into a clean temporary venv, and ran `blackhole-accelerators doctor --json --fail-on-emulation`; passed with `native_core_loaded=true`, `native_core_arch=arm64`, and `emulation_detected=false`.
 - Earlier queued `macos-13` runs were cancelled after replacing that retired label with `macos-15-intel`.
+- Architecture Report is now configured as an automatic `push` gate on `main`, matching the Python and Native Core workflows.
 
 Blocked locally:
 
