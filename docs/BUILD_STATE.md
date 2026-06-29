@@ -139,6 +139,16 @@ v0.9.0 sampler/composed micro-kernel validated on commit `5fae11d5968c1a8097da7e
 - CI artifact smoke: downloaded `native-wheel-windows-11-arm`, installed `blackhole_native-0.9.0-cp310-abi3-win_arm64.whl` into a clean temporary venv, and ran `blackhole-accelerators doctor --json --fail-on-emulation`; passed with `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
 - CI artifact sampler benchmark smoke: `blackhole-benchmark --target sample-brick-trilinear --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1` passed with `native_available=true`, `allclose=true`, `max_abs_diff=0.0`, and `max_rel_diff=0.0`.
 
+v0.9.0 invalid-domain sampler contract validated on commit `1ba99bbd71b29177dd5789aca4052bf828cc0540`:
+
+- `Architecture Report` run `28379479253`: passed.
+- `Python` run `28379479067`: passed.
+- `Native Core` run `28379479168`: passed, including post-wheel `python/tests/test_native_stokes_parity.py python/tests/test_native_sampler_parity.py`.
+- CI artifact `native-wheel-windows-11-arm` from run `28379479168`: artifact id `7954966621`, digest `sha256:33e7374454f6f6669b7801d140eb80dbf1005ab448184649e2d9914a95cf0e25`.
+- CI artifact smoke: downloaded `native-wheel-windows-11-arm`, installed `blackhole_native-0.9.0-cp310-abi3-win_arm64.whl` into a clean temporary venv, and ran `blackhole-accelerators doctor --json --fail-on-emulation`; passed with `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
+- CI artifact sampler parity smoke: `python -m pytest -q python/tests/test_native_sampler_parity.py` passed with the downloaded wheel installed.
+- CI artifact sampler benchmark smoke: `blackhole-benchmark --target sample-brick-trilinear --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1` passed with `native_available=true`, `allclose=true`, `max_abs_diff=0.0`, and `max_rel_diff=0.0`.
+
 Blocked locally:
 
 - No local native-toolchain blocker is currently known for Windows ARM64.
