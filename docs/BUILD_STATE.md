@@ -24,6 +24,7 @@ Date: 2026-06-29
 - Hardened PyO3 feature selection so plain `cargo test` does not build the extension-module flavor on macOS.
 - Native wheel CI now installs the built wheel and runs the architecture doctor gate.
 - Added public-data selected-dump evidence gates and deterministic hot-loop benchmark probes.
+- Updated Intel macOS CI coverage to use the current `macos-15-intel` runner label.
 
 ## Release Boundary
 
@@ -62,10 +63,20 @@ Run on Windows 11 ARM64 with Python 3.14.3 ARM64:
 - `maturin build --manifest-path native/core/Cargo.toml --release --target aarch64-pc-windows-msvc --out native/core/target/wheels-msvc`: passed and produced `blackhole_native-0.8.0-cp310-abi3-win_arm64.whl`.
 - `blackhole-render-accelerated --width 32 --height 18 --max-steps 64 --output out/stokes_review_smoke.npz`: passed; output is ignored and not committed.
 
+## GitHub CI Evidence
+
+Validated on commit `11cff4080de4ffab79cecb55f3667d5be4ff4fac`:
+
+- `Python` run `28345824031`: passed.
+- `Native Core` run `28345824025`: passed.
+- `Architecture Report` run `28345830767`: passed.
+- CI artifact smoke: downloaded `native-wheel-windows-11-arm` from run `28345824025`, installed `blackhole_native-0.8.0-cp310-abi3-win_arm64.whl` into a clean temporary venv, and ran `blackhole-accelerators doctor --json --fail-on-emulation`; passed with `native_core_loaded=true`, `native_core_arch=arm64`, and `emulation_detected=false`.
+- Earlier queued `macos-13` runs were cancelled after replacing that retired label with `macos-15-intel`.
+
 Blocked locally:
 
 - No local native-toolchain blocker is currently known for Windows ARM64.
-- GitHub Native Core CI still requires the updated workflow to be pushed and re-run before release use.
+- No current GitHub CI blocker is known for this milestone.
 
 ## Local Toolchain Notes
 
