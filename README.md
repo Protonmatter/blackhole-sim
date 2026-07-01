@@ -58,6 +58,22 @@ The release gate starts with:
 blackhole-accelerators doctor --json --fail-on-emulation
 ```
 
+## Direct GPU Path
+
+The browser renderer uses WebGPU compute and storage buffers directly through
+the platform GPU backend exposed by the browser, such as D3D12 on Windows,
+Metal on macOS, or Vulkan where supported. On this Windows ARM64 checkout,
+`blackhole-accelerators list --json` reports the OS video adapter when Windows
+exposes it through `Win32_VideoController`.
+
+Append `&diagnostics=1` to the WebGPU URL to run a bounded GPU readback sample
+for local adapter diagnostics.
+
+The CUDA, Metal, HIP, OpenCL, and WGSL kernel assets share the same staged
+contract: invalid nonperiodic brick samples are guarded before Stokes transfer
+updates, and no GPU physics parity claim is made until a small deterministic
+render passes against the CPU reference envelope on the target hardware.
+
 ## Showcase
 
 Run the guided showcase from the repo root:

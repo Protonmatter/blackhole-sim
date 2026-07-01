@@ -27,6 +27,12 @@ Linux aarch64
 
 Do not move the Kerr geodesic integrator into inference runtimes first. The core hot loop belongs in native CPU code or GPU compute shaders.
 
+The current direct GPU execution path is the WebGPU browser renderer. It
+dispatches WGSL compute shaders through the platform backend exposed by the
+browser and reports adapter information when available. Native CUDA, Metal,
+HIP, and OpenCL files are kernel assets until they are compiled, run, and
+accepted by deterministic CPU-reference regression tests on target hardware.
+
 ## Release Gates
 
 - Wheel names and binary headers must match the target architecture.

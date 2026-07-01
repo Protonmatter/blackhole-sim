@@ -30,9 +30,10 @@ The default JSON payload also includes native parity probes:
 - Native Stokes RK2 parity uses `rtol=1.0e-12` and `atol=1.0e-12` for the deterministic coefficient-brick fixture.
 - Native coefficient sampling parity uses `rtol=1.0e-12` and `atol=1.0e-12` for deterministic in-bounds and periodic-phi fixtures, and requires explicit `NaN` output for out-of-range nonperiodic samples.
 - Downstream renderer integration must use `sample_brick_valid_mask(...)` or `sample_and_step_stokes(..., invalid_policy=...)`; supported invalid-sample policies are `nan`, `initial`, and `zero`.
+- GPU render kernels must guard invalid nonperiodic brick samples before applying Stokes updates. A missing coefficient sample is not a physical zero-emission, zero-absorption cell.
 - `blackhole-accelerators doctor --json --fail-on-emulation` must pass on the target machine.
 - Benchmarks must report the target architecture and whether emulation was detected.
-- GPU kernels must have a CPU reference comparison for a small deterministic render before being promoted beyond prototype status.
+- Direct GPU paths must report the hardware adapter when the runtime exposes it. GPU kernels must have a CPU reference comparison for a small deterministic render before being promoted beyond prototype status.
 
 ## First Native Targets
 

@@ -20,6 +20,10 @@ struct RenderParams {
   pad0: u32,
 };
 struct State6 { t: f32, r: f32, th: f32, ph: f32, pr: f32, pth: f32 };
+struct BrickSample {
+  valid: f32,
+  coeffs: array<f32, 11>,
+};
 
 @group(0) @binding(0) var<storage, read_write> outStokes: array<vec4<f32>>;
 @group(0) @binding(1) var<storage, read> coeffs: array<f32>;
@@ -51,11 +55,11 @@ fn metric_contravariant(r: f32, theta: f32, a: f32) -> mat4x4<f32> {
 
 fn metric_derivative_r(r: f32, th: f32, a: f32) -> mat4x4<f32> {
   let e = 1.0e-3;
-  return (metric_contravariant(r + e, th, a) - metric_contravariant(r - e, th, a)) / (2.0 * e);
+  return (metric_contravariant(r + e, th, a) - metric_contravariant(r - e, th, a)) * (1.0 / (2.0 * e));
 }
 fn metric_derivative_theta(r: f32, th: f32, a: f32) -> mat4x4<f32> {
   let e = 1.0e-4;
-  return (metric_contravariant(r, th + e, a) - metric_contravariant(r, th - e, a)) / (2.0 * e);
+  return (metric_contravariant(r, th + e, a) - metric_contravariant(r, th - e, a)) * (1.0 / (2.0 * e));
 }
 
 fn kerr_rhs(y: State6, p_t: f32, p_phi: f32, a: f32) -> State6 {
@@ -106,11 +110,19 @@ fn bracket_phi(phi: f32) -> vec3<f32> {
 
 fn coeff_at(ir: u32, it: u32, ip: u32, c: u32) -> f32 { return coeffs[cidx(ir, it, ip, c)]; }
 
-fn sample_brick_trilinear(r: f32, th: f32, ph: f32) -> array<f32, 11> {
-  var out: array<f32, 11>;
+fn invalid_brick_sample() -> BrickSample {
+  var out: BrickSample;
+  out.valid = 0.0;
+  for (var c: u32 = 0u; c < 11u; c = c + 1u) { out.coeffs[c] = 0.0; }
+  return out;
+}
+
+fn sample_brick_trilinear(r: f32, th: f32, ph: f32) -> BrickSample {
+  var out: BrickSample;
+  out.valid = 1.0;
   let rb = bracket_linear(0u, params.nr, r);
   let tb = bracket_linear(1u, params.ntheta, th);
-  if (rb.x < 0.5 || tb.x < 0.5) { for (var c: u32 = 0u; c < 11u; c = c + 1u) { out[c] = 0.0; } return out; }
+  if (rb.x < 0.5 || tb.x < 0.5) { return invalid_brick_sample(); }
   let r0 = u32(rb.y); let r1 = r0 + 1u; let wr = rb.z;
   let t0 = u32(tb.y); let t1 = t0 + 1u; let wt = tb.z;
   let pb = bracket_phi(ph); let p0 = u32(pb.x); let p1 = u32(pb.y); let wp = pb.z;
@@ -119,7 +131,7 @@ fn sample_brick_trilinear(r: f32, th: f32, ph: f32) -> array<f32, 11> {
     let c01 = mix(coeff_at(r0,t1,p0,c), coeff_at(r0,t1,p1,c), wp);
     let c10 = mix(coeff_at(r1,t0,p0,c), coeff_at(r1,t0,p1,c), wp);
     let c11 = mix(coeff_at(r1,t1,p0,c), coeff_at(r1,t1,p1,c), wp);
-    out[c] = mix(mix(c00, c01, wt), mix(c10, c11, wt), wr);
+    out.coeffs[c] = mix(mix(c00, c01, wt), mix(c10, c11, wt), wr);
   }
   return out;
 }
@@ -145,8 +157,7 @@ fn ray_initial_state(px: u32, py: u32) -> State6 {
   return State6(0.0, params.camera_r, params.camera_theta, 0.0, -1.0, -0.22 * ndcy);
 }
 
-@compute @workgroup_size(8, 8, 1)
-fn kerr_stokes_render_kernel(@builtin(global_invocation_id) gid: vec3<u32>) {
+fn kerr_stokes_render_kernel(gid: vec3<u32>) {
   if (gid.x >= params.width || gid.y >= params.height) { return; }
   let pix = gid.y * params.width + gid.x;
   let ndcx = 2.0 * ((f32(gid.x) + 0.5) / f32(params.width)) - 1.0;
@@ -155,12 +166,15 @@ fn kerr_stokes_render_kernel(@builtin(global_invocation_id) gid: vec3<u32>) {
   let p_phi = 0.12 * ndcx;
   let r_plus = 1.0 + sqrt(max(1.0 - params.spin_a * params.spin_a, 0.0));
   var S = vec4<f32>(0.0);
-  for (var n: u32 = 0u; n < params.max_steps; n = n + 1u) {
+  let maxSteps = min(params.max_steps, 520u);
+  for (var n: u32 = 0u; n < maxSteps; n = n + 1u) {
     let prev = y;
     y = rk2_geodesic_step(y, params.step, p_t, p_phi, params.spin_a);
-    let c = sample_brick_trilinear(0.5 * (prev.r + y.r), 0.5 * (prev.th + y.th), 0.5 * (prev.ph + y.ph));
-    let ds = length(vec3<f32>(y.r - prev.r, y.th - prev.th, y.ph - prev.ph));
-    S = stokes_step_rk2(S, c, ds);
+    let sample = sample_brick_trilinear(0.5 * (prev.r + y.r), 0.5 * (prev.th + y.th), 0.5 * (prev.ph + y.ph));
+    if (sample.valid > 0.5) {
+      let ds = length(vec3<f32>(y.r - prev.r, y.th - prev.th, y.ph - prev.ph));
+      S = stokes_step_rk2(S, sample.coeffs, ds);
+    }
     if (y.r <= r_plus * 1.0002 || y.r > params.escape_radius) { break; }
   }
   outStokes[pix] = S;

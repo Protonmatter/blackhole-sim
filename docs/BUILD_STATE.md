@@ -33,6 +33,9 @@ Date: 2026-06-29
 - Added Python `sample_brick_valid_mask(...)` and `sample_and_step_stokes(..., invalid_policy=...)` so downstream renderer integration can keep, replace with initial Stokes values, or zero invalid nonperiodic rows intentionally.
 - Extended `blackhole-benchmark --json` to report Python reference and native timing for the coefficient sampler workload, including backend, architecture, grid size, point count, and parity error.
 - Native wheel CI now runs sampler parity tests after wheel install, alongside Stokes RK2 parity.
+- WebGPU accelerator discovery now reports OS-visible GPU adapters on Windows so direct browser GPU execution can be audited alongside shader availability.
+- The WebGPU browser renderer now reports the granted adapter and labels compute/fragment paths explicitly.
+- CUDA, Metal, HIP, OpenCL, and WebGPU Stokes kernel assets now guard invalid nonperiodic coefficient-brick samples before applying Stokes transfer updates.
 
 ## Release Boundary
 
@@ -125,6 +128,19 @@ v0.9.0 sampler invalid-row policy local evidence:
 - `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1`: passed; schema is `blackhole_sim.benchmark.v2` and includes sampler plus Stokes native parity payloads.
 - `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, and `emulation_detected=false`.
 - `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out\stokes_invalid_policy_smoke.npz`: passed; output is ignored and not committed.
+
+v0.9.0 direct GPU contract local evidence:
+
+- `python -m compileall blackhole_sim`: passed.
+- `python -m pytest -q`: passed with optional skips.
+- `cargo fmt --check --manifest-path native/core/Cargo.toml`: passed.
+- `cargo test --manifest-path native/core/Cargo.toml`: passed.
+- `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `gpu_backend=webgpu`, `native_core_loaded=true`, `native_core_arch=arm64`, and `emulation_detected=false`.
+- `python -m blackhole_sim.accelerator_cli list --json`: passed; WebGPU reported `Qualcomm(R) Adreno(TM) X1-85 GPU` from Windows video-controller discovery.
+- `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1`: passed; native sampler and Stokes RK2 parity both reported `allclose=true`, `max_abs_diff=0.0`, and `max_rel_diff=0.0`.
+- `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out\stokes_gpu_contract_smoke.npz`: passed; output is ignored and not committed.
+- `maturin build --manifest-path native/core/Cargo.toml --release --out native/core/target/wheels-gpu-contract`: passed and produced `blackhole_native-0.9.0-cp310-abi3-win_arm64.whl`.
+- In-app browser smoke against `http://127.0.0.1:8800/index.html?shader=stokes`: loaded the default WebGPU page, status reported `WebGPU direct compute: Stokes coefficient bricks on qualcomm / adreno-7xx`, and console warnings/errors were empty. Follow-up automation for the opt-in `diagnostics=1` readback path timed out before DOM readback, so GPU readback verification is not claimed here.
 
 ## GitHub CI Evidence
 

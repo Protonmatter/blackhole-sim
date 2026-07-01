@@ -1,4 +1,5 @@
 from blackhole_sim.accelerator import detect_backends, make_render_plan, choose_backend
+import blackhole_sim.accelerator as accelerator
 
 
 def test_detect_backends_always_has_cpu():
@@ -27,3 +28,14 @@ def test_interactive_plan_prefers_interactive_backend_when_available():
 def test_choose_backend_returns_available():
     chosen = choose_backend(detect_backends('.'))
     assert chosen.available
+
+
+def test_webgpu_backend_reports_os_gpu_devices_when_detected(monkeypatch):
+    monkeypatch.setattr(accelerator, "_os_gpu_devices", lambda: ("Qualcomm Adreno test adapter",))
+
+    backend = accelerator.detect_webgpu(project_root=".")
+
+    assert backend.name == "webgpu"
+    assert backend.devices == ("Qualcomm Adreno test adapter",)
+    assert "OS GPU adapter detected" in backend.reason
+    assert any("direct browser GPU compute path" in note for note in backend.notes)

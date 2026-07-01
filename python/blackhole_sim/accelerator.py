@@ -75,6 +75,41 @@ def _run_short(cmd: list[str], timeout: float = 1.5) -> str:
     return (out.stdout or out.stderr or "").strip()
 
 
+def _windows_video_devices() -> tuple[str, ...]:
+    if platform.system().lower() != "windows":
+        return ()
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+    if powershell is None:
+        return ()
+    cmd = [
+        powershell,
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Get-CimInstance Win32_VideoController | "
+        "Select-Object -ExpandProperty Name | "
+        "ConvertTo-Json -Compress",
+    ]
+    raw = _run_short(cmd, timeout=2.0)
+    if not raw:
+        return ()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return tuple(line.strip() for line in raw.splitlines() if line.strip())
+    if isinstance(payload, str):
+        return (payload,) if payload.strip() else ()
+    if isinstance(payload, list):
+        return tuple(str(item).strip() for item in payload if str(item).strip())
+    return ()
+
+
+def _os_gpu_devices() -> tuple[str, ...]:
+    return _windows_video_devices()
+
+
 def detect_cuda() -> BackendCapabilities:
     devices: list[str] = []
     available = False
@@ -120,6 +155,10 @@ def detect_webgpu(project_root: str | Path | None = None) -> BackendCapabilities
     )
     shader = next((p for p in shader_candidates if p.exists()), shader_candidates[0])
     available = shader.exists()
+    devices = _os_gpu_devices()
+    reason = "WGSL shader files present"
+    if available and devices:
+        reason = "WGSL shader files present; OS GPU adapter detected"
     return BackendCapabilities(
         name="webgpu",
         vendor="browser/native-cross-vendor",
@@ -131,8 +170,12 @@ def detect_webgpu(project_root: str | Path | None = None) -> BackendCapabilities
         supports_offline=False,
         supports_stokes=True,
         supports_coeff_bricks=True,
-        reason="WGSL shader files present" if available else "webgpu shader directory not found",
-        notes=("best portable interactive path; use coefficient bricks uploaded to 3D textures/storage buffers",),
+        reason=reason if available else "webgpu shader directory not found",
+        devices=devices,
+        notes=(
+            "direct browser GPU compute path; WGSL dispatches through the platform backend such as D3D12, Metal, or Vulkan",
+            "best portable interactive path; use coefficient bricks uploaded to GPU storage buffers",
+        ),
     )
 
 

@@ -47,15 +47,16 @@ void bracket_phi(device const float* grid, uint n, float ph, thread uint& i0, th
     float p = wrap_phi(ph); uint lo = 0; while (lo < n-1 && grid[lo+1] <= p) ++lo; i0 = lo; i1 = (lo + 1) % n; float hi = i1 > i0 ? grid[i1] : grid[0] + 6.28318530718f; float pp = p >= grid[i0] ? p : p + 6.28318530718f; w = (pp - grid[i0]) / max(hi - grid[i0], 1.0e-20f);
 }
 
-void sample_brick_trilinear(device const float* coeffs, device const float* rg, device const float* tg, device const float* pg, uint nr, uint nt, uint np, float r, float th, float ph, thread float outv[11]) {
+bool sample_brick_trilinear(device const float* coeffs, device const float* rg, device const float* tg, device const float* pg, uint nr, uint nt, uint np, float r, float th, float ph, thread float outv[11]) {
     uint r0,r1,t0,t1,p0,p1; float wr,wt,wp;
-    if (!bracket_linear(rg,nr,r,r0,r1,wr) || !bracket_linear(tg,nt,th,t0,t1,wt)) { for (uint c=0;c<11;++c) outv[c] = 0.0f; return; }
+    if (!bracket_linear(rg,nr,r,r0,r1,wr) || !bracket_linear(tg,nt,th,t0,t1,wt)) { for (uint c=0;c<11;++c) outv[c] = as_type<float>(0x7fc00000u); return false; }
     bracket_phi(pg,np,ph,p0,p1,wp);
     for (uint c=0;c<11;++c) {
         float c000=coeffs[cidx(r0,t0,p0,c,nt,np)], c001=coeffs[cidx(r0,t0,p1,c,nt,np)], c010=coeffs[cidx(r0,t1,p0,c,nt,np)], c011=coeffs[cidx(r0,t1,p1,c,nt,np)];
         float c100=coeffs[cidx(r1,t0,p0,c,nt,np)], c101=coeffs[cidx(r1,t0,p1,c,nt,np)], c110=coeffs[cidx(r1,t1,p0,c,nt,np)], c111=coeffs[cidx(r1,t1,p1,c,nt,np)];
         float c00=mix(c000,c001,wp), c01=mix(c010,c011,wp), c10=mix(c100,c101,wp), c11=mix(c110,c111,wp); outv[c]=mix(mix(c00,c01,wt), mix(c10,c11,wt), wr);
     }
+    return true;
 }
 
 void stokes_rhs(thread const float S[4], thread const float c[11], thread float o[4]) { o[0]=c[0]-(c[4]*S[0]+c[5]*S[1]+c[6]*S[2]+c[7]*S[3]); o[1]=c[1]-(c[5]*S[0]+c[4]*S[1]+c[8]*S[2]-c[9]*S[3]); o[2]=c[2]-(c[6]*S[0]-c[8]*S[1]+c[4]*S[2]+c[10]*S[3]); o[3]=c[3]-(c[7]*S[0]+c[9]*S[1]-c[10]*S[2]+c[4]*S[3]); }
@@ -65,6 +66,6 @@ kernel void kerr_stokes_render_kernel(device float4* out_stokes [[buffer(0)]], d
     if (gid.x >= params.width || gid.y >= params.height) return; uint pix = gid.y * params.width + gid.x;
     float ndcx = 2.0f * ((float(gid.x) + .5f) / float(params.width)) - 1.0f; float ndcy = 1.0f - 2.0f * ((float(gid.y) + .5f) / float(params.height));
     State6 s = State6{0.0f,55.0f,1.134464f,0.0f,-1.0f,-.22f*ndcy}; float p_t=-1.0f,p_phi=.12f*ndcx,S[4]={0,0,0,0}; float rplus=1.0f+sqrt(max(1.0f-params.spin_a*params.spin_a,0.0f));
-    for(uint n=0;n<params.max_steps;++n){ State6 prev=s; s=rk2_geodesic_step(s,params.step,p_t,p_phi,params.spin_a); float c[11]; sample_brick_trilinear(coeffs,r_grid,theta_grid,phi_grid,params.nr,params.ntheta,params.nphi,.5f*(prev.r+s.r),.5f*(prev.th+s.th),.5f*(prev.ph+s.ph),c); float ds=length(float3(s.r-prev.r,s.th-prev.th,s.ph-prev.ph)); stokes_step_rk2(S,c,ds); if(s.r<=rplus*1.0002f||s.r>220.0f)break; }
+    for(uint n=0;n<params.max_steps;++n){ State6 prev=s; s=rk2_geodesic_step(s,params.step,p_t,p_phi,params.spin_a); float c[11]; bool valid=sample_brick_trilinear(coeffs,r_grid,theta_grid,phi_grid,params.nr,params.ntheta,params.nphi,.5f*(prev.r+s.r),.5f*(prev.th+s.th),.5f*(prev.ph+s.ph),c); if(valid){ float ds=length(float3(s.r-prev.r,s.th-prev.th,s.ph-prev.ph)); stokes_step_rk2(S,c,ds); } if(s.r<=rplus*1.0002f||s.r>220.0f)break; }
     out_stokes[pix] = float4(S[0],S[1],S[2],S[3]);
 }

@@ -3,29 +3,82 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kerr WebGPU Renderer</title>
+  <link rel="icon" href="data:," />
+  <title>Kerr WebGPU Simulation Tool</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #050508; color: #ddd; font-family: system-ui, sans-serif; }
-    canvas { width: 100vw; height: 100vh; display: block; }
-    #panel { position: fixed; left: 12px; top: 12px; padding: 12px; background: rgba(0,0,0,.62); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; min-width: 280px; }
-    label { display: grid; grid-template-columns: 92px 1fr 60px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
-    input { width: 100%; }
+    :root { color-scheme: dark; --panel: rgba(10, 12, 15, .78); --line: rgba(255,255,255,.18); --text: #e8edf2; --muted: #aeb9c5; --accent: #36a3ff; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #050508; color: var(--text); font-family: system-ui, sans-serif; }
+    canvas { width: 100vw; height: 100vh; display: block; cursor: grab; touch-action: none; }
+    canvas:active { cursor: grabbing; }
+    #panel { position: fixed; left: 12px; top: 12px; width: min(720px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; backdrop-filter: blur(10px); }
+    .topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .title { min-width: 0; }
+    .title strong { display: block; font-size: 15px; line-height: 1.2; }
+    #status { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    .toolbar, .preset-row, .quality-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    button { min-height: 30px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: rgba(255,255,255,.08); font: inherit; font-size: 12px; cursor: pointer; }
+    button[aria-pressed="true"], button.active { border-color: rgba(54,163,255,.72); background: rgba(54,163,255,.22); }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .control-grid { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 4px 16px; }
+    label.control { display: grid; grid-template-columns: 92px minmax(120px, 1fr) 58px; gap: 8px; align-items: center; min-height: 30px; font-size: 13px; }
+    label.control output { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+    input, select { width: 100%; }
+    input[type="range"] { accent-color: var(--accent); }
+    .full { grid-column: 1 / -1; }
+    .sim-strip { display: grid; grid-template-columns: 92px minmax(120px, 1fr) 58px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+    .preset-row { margin: 10px 0 8px; }
+    .telemetry { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 6px 12px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; }
+    .telemetry div { min-width: 0; }
+    .telemetry dt { color: var(--muted); }
+    .telemetry dd { margin: 1px 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
     code { color: #9fd; }
+    @media (max-width: 680px) {
+      #panel { width: calc(100vw - 16px); left: 8px; top: 8px; padding: 10px; }
+      .topline { display: grid; }
+      .control-grid, .telemetry { grid-template-columns: 1fr; }
+      label.control, .sim-strip { grid-template-columns: 86px minmax(100px, 1fr) 52px; }
+    }
   </style>
 </head>
 <body>
   <canvas id="view"></canvas>
   <div id="panel">
-    <div><b>Kerr WebGPU</b> <span id="status"></span></div>
-    <label>shader <select id="shader"><option value="disk">thin disk</option><option value="volume">GRRT volume</option><option value="stokes">Stokes bricks</option></select><output></output></label>
-    <label>spin <input id="spin" type="range" min="-0.98" max="0.98" step="0.01" value="0.75"><output></output></label>
-    <label>inclination <input id="inc" type="range" min="5" max="88" step="1" value="67"><output></output></label>
-    <label>camera r <input id="camr" type="range" min="12" max="120" step="1" value="55"><output></output></label>
-    <label>steps <input id="steps" type="range" min="120" max="1200" step="20" value="520"><output></output></label>
-    <label>density <input id="density" type="range" min="0.05" max="8" step="0.05" value="1"><output></output></label>
-    <label>temp <input id="temp" type="range" min="0.05" max="5" step="0.05" value="1"><output></output></label>
-    <label>absorb <input id="absorb" type="range" min="0" max="4" step="0.05" value="1"><output></output></label>
-    <div style="font-size:12px; opacity:.75">Units: <code>G=c=M=1</code>. Serve over localhost.</div>
+    <div class="topline">
+      <div class="title"><strong>Kerr WebGPU Simulation</strong><span id="status"></span></div>
+      <div class="toolbar">
+        <button id="playToggle" type="button" aria-pressed="true">Pause</button>
+        <button id="resetView" type="button">Reset</button>
+        <button id="captureFrame" type="button">Capture</button>
+      </div>
+    </div>
+    <div class="control-grid">
+      <label class="control">shader <select id="shader"><option value="disk">thin disk</option><option value="volume">GRRT volume</option><option value="stokes">Stokes bricks</option></select><output></output></label>
+      <div class="sim-strip">quality <div class="quality-row" id="qualityControls"><button type="button" data-quality="fast">Fast</button><button type="button" data-quality="balanced">Balanced</button><button type="button" data-quality="detail">Detail</button><button type="button" data-quality="ultra">Ultra</button></div><output id="qualityOut"></output></div>
+      <label class="control">spin <input id="spin" type="range" min="-0.98" max="0.98" step="0.01" value="0.75"><output></output></label>
+      <label class="control">inclination <input id="inc" type="range" min="5" max="88" step="1" value="80"><output></output></label>
+      <label class="control">camera r <input id="camr" type="range" min="12" max="120" step="1" value="18"><output></output></label>
+      <label class="control">steps <input id="steps" type="range" min="80" max="520" step="20" value="520"><output></output></label>
+      <label class="control">density <input id="density" type="range" min="0.05" max="8" step="0.05" value="1"><output></output></label>
+      <label class="control">temp <input id="temp" type="range" min="0.05" max="5" step="0.05" value="1"><output></output></label>
+      <label class="control">absorb <input id="absorb" type="range" min="0" max="4" step="0.05" value="1"><output></output></label>
+      <label class="control">time <input id="timeScale" type="range" min="0" max="4" step="0.05" value="1"><output></output></label>
+    </div>
+    <div class="preset-row">
+      <button type="button" data-preset="near">Near Disk</button>
+      <button type="button" data-preset="flow">Volume Flow</button>
+      <button type="button" data-preset="polarized">Polarized</button>
+      <button type="button" data-preset="wide">Wide Orbit</button>
+    </div>
+    <dl class="telemetry">
+      <div><dt>frame</dt><dd id="fpsValue">--</dd></div>
+      <div><dt>resolution</dt><dd id="resolutionValue">--</dd></div>
+      <div><dt>sim time</dt><dd id="timeValue">0.00</dd></div>
+      <div><dt>horizon</dt><dd id="horizonValue">--</dd></div>
+      <div><dt>ISCO</dt><dd id="iscoValue">--</dd></div>
+      <div><dt>readback</dt><dd id="diagnosticsValue">off</dd></div>
+    </dl>
+    <div style="font-size:12px; opacity:.75; margin-top:8px">Units: <code>G=c=M=1</code>. Local WebGPU backend.</div>
   </div>
   <script type="module" src="./src/main.js"></script>
 </body>
