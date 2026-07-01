@@ -117,7 +117,7 @@ def integrate_polarized_kerr_grrt(
         if g_shift < pcfg.min_redshift:
             continue
         nu_emit = pcfg.observing_frequency_hz / g_shift
-        frame = local_plasma_from_sample(sample, scaling, p_cov)
+        frame = local_plasma_from_sample(sample, scaling, p_cov, spin_a=float(snapshot.spin_a))
         coeff = model.coefficients(frame, nu_emit)
         # Invariant transfer: j/nu^2 and alpha*nu are invariant; for a compact
         # screen-frame Stokes integral we use g^2 on emission and g^-1 on K.

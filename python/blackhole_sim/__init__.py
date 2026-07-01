@@ -37,7 +37,14 @@ from .physics import BlackHoleSystem
 from .calibration import PhysicalScaling, calibrate_flux_scale
 from .grmhd_adapters import load_harm_hdf5, load_bhac_hdf5, load_koral_hdf5
 from .polarized_transfer import integrate_polarized_kerr_grrt, stokes_step_exact
-from .synchrotron import HybridSynchrotronCoefficients, ThermalSynchrotronCoefficients, NonthermalPowerLawSynchrotronCoefficients
+from .synchrotron import (
+    HybridSynchrotronCoefficients,
+    NonthermalPowerLawSynchrotronCoefficients,
+    ThermalSynchrotronCoefficients,
+    local_plasma_from_sample,
+    magnetic_field_strength_code,
+    magnetic_pitch_cosine,
+)
 
 from .accelerated_renderer import (
     AcceleratedRenderConfig,
@@ -98,6 +105,9 @@ __all__ = [
     "HybridSynchrotronCoefficients",
     "ThermalSynchrotronCoefficients",
     "NonthermalPowerLawSynchrotronCoefficients",
+    "local_plasma_from_sample",
+    "magnetic_field_strength_code",
+    "magnetic_pitch_cosine",
     "AcceleratedRenderConfig",
     "render_stokes_image_bricks",
     "render_progressive_stokes_bricks",

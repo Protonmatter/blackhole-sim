@@ -16,7 +16,7 @@ import numpy as np
 
 from .calibration import PhysicalScaling
 from .grmhd import GRMHDSnapshot, FluidSample
-from .synchrotron import HybridSynchrotronCoefficients, LocalPlasmaFrame
+from .synchrotron import HybridSynchrotronCoefficients, LocalPlasmaFrame, local_plasma_from_sample
 
 COEFF_NAMES: tuple[str, ...] = (
     "j_i", "j_q", "j_u", "j_v",
@@ -107,13 +107,8 @@ def _cell_sample(snapshot: GRMHDSnapshot, i: int, j: int, k: int) -> FluidSample
     )
 
 
-def _fast_frame(sample: FluidSample, scaling: PhysicalScaling) -> LocalPlasmaFrame:
-    b_vec = np.asarray(sample.b_con[1:], dtype=float)
-    b_code = float(np.linalg.norm(b_vec))
-    b_gauss = float(scaling.magnetic_field_gauss(b_code))
-    n_e = float(scaling.electron_number_density_cm3(sample.rho))
-    evpa = float(np.arctan2(b_vec[2], b_vec[1])) if b_code > 0.0 else 0.0
-    return LocalPlasmaFrame(n_e, max(sample.theta_e, 1e-8), max(b_gauss, 0.0), 0.0, evpa)
+def _fast_frame(sample: FluidSample, scaling: PhysicalScaling, spin_a: float) -> LocalPlasmaFrame:
+    return local_plasma_from_sample(sample, scaling, spin_a=spin_a)
 
 
 def precompute_coefficient_bricks(
@@ -141,7 +136,7 @@ def precompute_coefficient_bricks(
         for jj, j in enumerate(t_idx):
             for kk, k in enumerate(p_idx):
                 sample = _cell_sample(snapshot, int(i), int(j), int(k))
-                frame = _fast_frame(sample, scaling)
+                frame = _fast_frame(sample, scaling, float(snapshot.spin_a))
                 c = coeff_model.coefficients(frame, nu_hz)
                 coeffs[ii, jj, kk] = np.asarray([
                     c.j_i, c.j_q, c.j_u, c.j_v,
