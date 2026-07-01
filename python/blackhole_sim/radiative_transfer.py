@@ -11,17 +11,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Protocol
+from typing import Literal, Protocol
 
 import numpy as np
 
 from .grmhd import FluidSample, GRMHDSnapshot
 from .kerr import KerrTraceResult
 from .physics import C_SI
+from .synchrotron import magnetic_field_strength_code
 
 
 class CoefficientModel(Protocol):
-    def coefficients(self, sample: FluidSample, nu_emit_hz: float, p_cov: np.ndarray) -> tuple[float, float, np.ndarray]:
+    def coefficients(
+        self,
+        sample: FluidSample,
+        nu_emit_hz: float,
+        p_cov: np.ndarray,
+        spin_a: float | None = None,
+    ) -> tuple[float, float, np.ndarray]:
         """Return emission j_nu, absorption alpha_nu, and RGB source color."""
 
 
@@ -42,10 +49,16 @@ class ThermalSynchrotronFit:
     spectral_index: float = 1.2
     color_temperature_bias: float = 0.18
 
-    def coefficients(self, sample: FluidSample, nu_emit_hz: float, p_cov: np.ndarray) -> tuple[float, float, np.ndarray]:
+    def coefficients(
+        self,
+        sample: FluidSample,
+        nu_emit_hz: float,
+        p_cov: np.ndarray,
+        spin_a: float | None = None,
+    ) -> tuple[float, float, np.ndarray]:
         if not sample.valid or sample.rho <= 0.0 or sample.theta_e <= 0.0:
             return 0.0, 0.0, np.zeros(3)
-        b_mag = _magnetic_magnitude_proxy(sample.b_con)
+        b_mag = magnetic_field_strength_code(sample, spin_a=spin_a)
         theta_e = max(sample.theta_e, 1.0e-8)
         # Critical-frequency proxy in dimensionless field units. Real datasets
         # must provide the physical B and density scale for absolute flux.
@@ -69,6 +82,7 @@ class TransferConfig:
     max_optical_depth: float = 18.0
     min_redshift: float = 1.0e-6
     intensity_floor: float = 0.0
+    physics_mode: Literal["educational_proxy", "validated"] = "educational_proxy"
 
 
 @dataclass(frozen=True)
@@ -81,13 +95,6 @@ class TransferResult:
     redshift_max: float
 
 
-def _magnetic_magnitude_proxy(b_con: np.ndarray) -> float:
-    # Positive definite proxy for local field strength. A production adapter can
-    # replace this with b^2 = b_mu b^mu in the local tetrad frame.
-    b = np.asarray(b_con, dtype=float)
-    return float(np.linalg.norm(b[1:]) + 1.0e-30)
-
-
 def photon_energy_in_fluid_frame(p_cov: np.ndarray, u_con: np.ndarray) -> float:
     return -float(np.asarray(p_cov, dtype=float) @ np.asarray(u_con, dtype=float))
 
@@ -97,6 +104,21 @@ def invariant_redshift(p_cov: np.ndarray, u_emit: np.ndarray, observed_energy: f
     if e_emit <= 0.0 or not np.isfinite(e_emit):
         return 0.0
     return observed_energy / e_emit
+
+
+def _coefficient_values(
+    model: CoefficientModel,
+    sample: FluidSample,
+    nu_emit_hz: float,
+    p_cov: np.ndarray,
+    spin_a: float,
+) -> tuple[float, float, np.ndarray]:
+    try:
+        return model.coefficients(sample, nu_emit_hz, p_cov, spin_a=spin_a)
+    except TypeError as exc:
+        if "spin_a" not in str(exc):
+            raise
+        return model.coefficients(sample, nu_emit_hz, p_cov)  # type: ignore[call-arg]
 
 
 def integrate_kerr_grrt(
@@ -114,6 +136,8 @@ def integrate_kerr_grrt(
     """
     model = coeffs or ThermalSynchrotronFit()
     tc = cfg or TransferConfig()
+    if tc.physics_mode == "validated" and isinstance(model, ThermalSynchrotronFit):
+        raise ValueError("validated transfer mode requires a non-proxy CoefficientModel")
     states = trace.states
     if len(states) < 2:
         return TransferResult(np.zeros(3), 0.0, 0, 0, math.inf, 0.0)
@@ -143,7 +167,7 @@ def integrate_kerr_grrt(
         if g_shift < tc.min_redshift:
             continue
         nu_emit = tc.observing_frequency_hz / g_shift
-        j, alpha, color = model.coefficients(sample, nu_emit, p_cov)
+        j, alpha, color = _coefficient_values(model, sample, nu_emit, p_cov, float(snapshot.spin_a))
         if j <= 0.0 and alpha <= 0.0:
             continue
         dlambda = float(np.linalg.norm(cur[1:4] - prev[1:4]))

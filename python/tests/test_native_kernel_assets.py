@@ -55,3 +55,22 @@ def test_webgpu_stokes_invalid_samples_use_finite_shader_values():
     assert "@compute @workgroup_size(8, 8, 1)\nfn main" in text
     assert "@compute @workgroup_size(8, 8, 1)\nfn kerr_stokes_render_kernel" not in text
     assert "fn kerr_stokes_render_kernel(gid: vec3<u32>)" in text
+
+
+def test_gpu_kernel_assets_use_zamo_camera_launch_not_hardcoded_momenta():
+    root = Path(__file__).resolve().parents[2]
+    expected = [
+        root / "native/cuda/kerr_stokes_kernel.cu",
+        root / "native/metal/kerr_stokes_kernel.metal",
+        root / "native/opencl/kerr_stokes_kernel.cl",
+        root / "native/rocm/kerr_stokes_kernel.hip",
+        root / "web/webgpu/src/stokes_brick_compute.wgsl",
+    ]
+    stale_tokens = ("p_t=-1", "p_t = -1", "p_phi=.12", "p_phi = 0.12", "-0.22")
+    for path in expected:
+        text = path.read_text()
+        assert "zamo_camera_ray_initial_state" in text, f"ZAMO launch missing from {path}"
+        assert "RayLaunch" in text, f"conserved-momentum launch payload missing from {path}"
+        assert "lapse" in text and "omega" in text, f"ZAMO lapse/frame-dragging terms missing from {path}"
+        for tok in stale_tokens:
+            assert tok not in text, f"stale hardcoded ray momentum token {tok!r} remains in {path}"

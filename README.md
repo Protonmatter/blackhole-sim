@@ -11,6 +11,24 @@ web/          WebGPU renderer and guided browser showcase
 docs/         build state, native roadmap, data validation, performance notes
 ```
 
+## Physics Contract
+
+Python is the authoritative physics reference path. The repo models Kerr
+spacetime, local ZAMO camera rays, null geodesics, GRMHD snapshot sampling,
+invariant redshift hooks, and polarized Stokes transfer, but it is still a
+research reference implementation. WebGPU and native kernels are acceleration
+targets and must pass deterministic parity gates before any physics-equivalence
+claim is made.
+
+The unpolarized preview path defaults to `educational_proxy` mode. `validated`
+mode requires metric-aware local plasma calculations plus a non-proxy
+coefficient model or external baseline evidence.
+
+See `docs/PHYSICS_VALIDATION.md` for the current grounding, approximation
+boundaries, validation commands, and the WebGPU-versus-game-engine policy. See
+`docs/SCIENTIFIC_ROADMAP.md` for the release gates that turn the project into a
+validated GRRT platform.
+
 ## Install
 
 ```bash
@@ -72,7 +90,10 @@ for local adapter diagnostics.
 The CUDA, Metal, HIP, OpenCL, and WGSL kernel assets share the same staged
 contract: invalid nonperiodic brick samples are guarded before Stokes transfer
 updates, and no GPU physics parity claim is made until a small deterministic
-render passes against the CPU reference envelope on the target hardware.
+render passes against the CPU reference envelope on the target hardware. The
+Stokes kernel source now derives camera rays from a ZAMO launch helper rather
+than fixed photon momenta, but readback parity is still required before claiming
+GPU renderer parity.
 
 ## Showcase
 
