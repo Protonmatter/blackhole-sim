@@ -40,6 +40,7 @@ Date: 2026-07-01
 - Coefficient-brick precomputation and polarized transfer now use the shared metric-aware local plasma helper when snapshot spin is available.
 - WebGPU Stokes compute and static CUDA/Metal/HIP/OpenCL kernel assets now derive launch state and conserved photon momenta through a ZAMO camera helper instead of fixed `p_t`/`p_phi` constants.
 - Installed seven local Codex science skills under `C:\Users\mkang\.codex\skills` for Kerr validation, GRMHD data validation, GRRT transfer, numerical methods, GPU parity, scientific Python quality, and scientific visualization review.
+- Replaced separate Python/native/architecture smoke workflows with a unified CI pipeline plus a manual/tag artifact-delivery workflow and Dependabot update configuration. The artifact workflow uploads review artifacts only; it does not publish packages or releases.
 
 ## Release Boundary
 
@@ -158,6 +159,16 @@ v0.9.0 science-grade redirection local evidence:
 - `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1`: passed; native sampler and Stokes RK2 parity both reported `allclose=true`, `max_abs_diff=0.0`, and `max_rel_diff=0.0`.
 - `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out\science_redirection_smoke.npz`: passed; output is ignored and not committed.
 - Direct WebGPU browser readback and concrete Illinois v3 selected-dump/ipole validation were not run in this pass, so GPU image parity and external GRRT parity are still not claimed.
+
+v0.9.0 CI/CD pipeline local evidence:
+
+- `.github/workflows/ci.yml` added as the pull-request and `main` validation pipeline, including hygiene, Python, science-contract, Rust, native-wheel, and final required aggregation jobs.
+- `.github/workflows/release-artifacts.yml` added for manual or `v*` tag artifact builds; it uploads artifacts but intentionally does not publish PyPI packages or GitHub releases.
+- `.github/dependabot.yml` added for weekly GitHub Actions, Python, and Cargo update PRs.
+- Local workflow YAML parsing with Python/PyYAML: passed for `.github/workflows/ci.yml`, `.github/workflows/release-artifacts.yml`, and `.github/dependabot.yml`.
+- Tracked-artifact policy check using `git ls-files`: passed; no tracked `.npz`, `.h5`, `.hdf5`, `.png`, `.tiff`, or `.whl` artifacts.
+- `git diff --check`: passed; Windows line-ending warnings are non-blocking.
+- `actionlint` was not available on PATH, so GitHub Actions execution is the next validation layer after push.
 
 ## GitHub CI Evidence
 

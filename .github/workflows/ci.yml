@@ -1,0 +1,210 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install YAML parser
+        run: python -m pip install -U pip pyyaml
+      - name: Validate workflow YAML and repository artifact policy
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          import yaml
+
+          for path in sorted(Path(".github/workflows").glob("*.yml")):
+              with path.open("r", encoding="utf-8") as f:
+                  yaml.safe_load(f)
+
+          import subprocess
+
+          blocked_suffixes = {".npz", ".h5", ".hdf5", ".png", ".tiff", ".whl"}
+          tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          blocked = [p for p in tracked if Path(p).suffix.lower() in blocked_suffixes]
+          if blocked:
+              print("Generated or binary artifacts must not be committed:")
+              print("\n".join(sorted(blocked)))
+              sys.exit(1)
+          PY
+      - name: Git whitespace check
+        run: git diff --check
+
+  python:
+    name: python-${{ matrix.os }}-${{ matrix.python-version }}
+    needs: hygiene
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python-version: "3.11"
+          - os: ubuntu-24.04
+            python-version: "3.12"
+          - os: ubuntu-24.04
+            python-version: "3.13"
+          - os: windows-2025
+            python-version: "3.12"
+          - os: macos-15
+            python-version: "3.12"
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: python/pyproject.toml
+      - name: Install package
+        run: python -m pip install -U pip && python -m pip install -e ".[dev,hdf5]"
+      - name: Compile
+        run: python -m compileall blackhole_sim
+      - name: Test
+        run: python -m pytest -q
+      - name: Accelerator doctor
+        run: python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation
+
+  science-contracts:
+    name: science-contracts
+    needs: hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python/pyproject.toml
+      - name: Install package
+        run: python -m pip install -U pip && python -m pip install -e ".[dev,hdf5]"
+      - name: Focused physics contracts
+        run: >
+          python -m pytest -q
+          tests/test_kerr.py
+          tests/test_radiative_transfer.py
+          tests/test_synchrotron_polarized_transfer.py
+          tests/test_public_dumps.py
+          tests/test_external_validation.py
+          tests/test_native_kernel_assets.py
+      - name: Benchmark parity smoke
+        run: python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1
+      - name: Accelerated renderer smoke
+        run: python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out/ci_stokes_smoke.npz
+
+  rust:
+    name: rust-${{ matrix.os }}
+    needs: hygiene
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Format
+        run: cargo fmt --check --manifest-path native/core/Cargo.toml
+      - name: Test
+        run: cargo test --manifest-path native/core/Cargo.toml
+
+  native-wheel:
+    name: native-wheel-${{ matrix.os }}
+    needs: [python, rust, science-contracts]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: ubuntu-24.04-arm
+          - os: windows-2025
+          - os: windows-11-arm
+          - os: macos-15-intel
+          - os: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python/pyproject.toml
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install maturin
+        run: python -m pip install -U pip maturin
+      - name: Build native wheel
+        run: maturin build --manifest-path native/core/Cargo.toml --release --out dist --features extension-module
+      - name: Install simulator and native wheel
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          subprocess.check_call([sys.executable, "-m", "pip", "install", "-e", "./python[dev,hdf5]"])
+          wheels = sorted(Path("dist").glob("blackhole_native-*.whl"))
+          assert wheels, "no blackhole_native wheel produced"
+          subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", str(wheels[-1])])
+      - name: Native wheel doctor
+        run: |
+          python -c "import blackhole_native, json; info=blackhole_native.detect_arch(); print(json.dumps({'version': blackhole_native.core_version(), 'arch': info}, sort_keys=True)); assert info.get('arch') in {'arm64', 'x86_64', 'x86'}"
+          python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation
+      - name: Native parity regression
+        run: python -m pytest -q python/tests/test_native_stokes_parity.py python/tests/test_native_sampler_parity.py python/tests/test_benchmark.py
+      - name: Native benchmark smoke
+        run: python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-wheel-${{ matrix.os }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  required:
+    name: ci-required
+    if: always()
+    needs: [hygiene, python, science-contracts, rust, native-wheel]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check required jobs
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+
+          results = json.loads(r'''${{ toJson(needs) }}''')
+          failed = {name: data["result"] for name, data in results.items() if data["result"] != "success"}
+          if failed:
+              print(failed)
+              sys.exit(1)
+          print("all required CI jobs passed")
+          PY
