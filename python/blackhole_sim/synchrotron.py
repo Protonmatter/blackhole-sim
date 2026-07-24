@@ -22,6 +22,7 @@ except Exception as exc:  # pragma: no cover
 from .calibration import C_CGS, E_CHARGE_ESU, K_BOLTZMANN_CGS, M_ELECTRON_CGS
 from .calibration import PhysicalScaling
 from .grmhd import FluidSample
+from .kerr import kerr_metric_covariant, zamo_tetrad
 
 
 @dataclass(frozen=True)
@@ -101,19 +102,72 @@ class PolarizedCoefficients:
         )
 
 
-def local_plasma_from_sample(sample: FluidSample, scaling: PhysicalScaling, p_cov: np.ndarray | None = None) -> LocalPlasmaFrame:
-    b_vec = np.asarray(sample.b_con[1:], dtype=float)
-    b_code = float(np.linalg.norm(b_vec))
+def magnetic_field_strength_code(sample: FluidSample, spin_a: float | None = None) -> float:
+    """Return local magnetic-field magnitude in code units.
+
+    When ``spin_a`` is available this uses the Kerr metric invariant
+    ``sqrt(b_mu b^mu)`` for the supplied contravariant magnetic four-vector.
+    The Euclidean spatial norm is retained only as a compatibility fallback for
+    callers that do not yet have a metric context.
+    """
+
+    b_con = np.asarray(sample.b_con, dtype=float)
+    if spin_a is not None and sample.valid:
+        try:
+            g_cov = kerr_metric_covariant(float(sample.r), float(sample.theta), float(spin_a))
+            b2 = float(b_con @ g_cov @ b_con)
+            if np.isfinite(b2) and b2 > 0.0:
+                return math.sqrt(b2)
+        except (FloatingPointError, ValueError, OverflowError):
+            pass
+    return float(np.linalg.norm(b_con[1:]))
+
+
+def magnetic_pitch_cosine(sample: FluidSample, p_cov: np.ndarray, spin_a: float | None = None) -> float:
+    """Return cos(angle) between photon direction and magnetic field.
+
+    The validated path uses the invariant fluid-frame relation
+    ``cos(alpha) = (p_mu b^mu) / (E_fluid |B|)`` where
+    ``E_fluid = -p_mu u^mu``. This avoids coordinate-basis Euclidean dot
+    products, which are not physically meaningful in Kerr coordinates.
+    """
+
+    b_code = magnetic_field_strength_code(sample, spin_a=spin_a)
+    if b_code <= 0.0:
+        return 0.0
+    p = np.asarray(p_cov, dtype=float)
+    u = np.asarray(sample.u_con, dtype=float)
+    e_fluid = -float(p @ u)
+    if e_fluid <= 0.0 or not np.isfinite(e_fluid):
+        return 0.0
+    numerator = float(p @ np.asarray(sample.b_con, dtype=float))
+    return float(np.clip(numerator / max(e_fluid * b_code, 1.0e-300), -1.0, 1.0))
+
+
+def _zamo_spatial_components(sample: FluidSample, spin_a: float | None) -> np.ndarray:
+    b_con = np.asarray(sample.b_con, dtype=float)
+    if spin_a is None or not sample.valid:
+        return b_con[1:].copy()
+    try:
+        g_cov = kerr_metric_covariant(float(sample.r), float(sample.theta), float(spin_a))
+        tetrad = zamo_tetrad(float(sample.r), float(sample.theta), float(spin_a))
+        return np.array([float(b_con @ g_cov @ tetrad[i]) for i in (1, 2, 3)], dtype=float)
+    except (FloatingPointError, ValueError, OverflowError):
+        return b_con[1:].copy()
+
+
+def local_plasma_from_sample(
+    sample: FluidSample,
+    scaling: PhysicalScaling,
+    p_cov: np.ndarray | None = None,
+    spin_a: float | None = None,
+) -> LocalPlasmaFrame:
+    b_hat = _zamo_spatial_components(sample, spin_a)
+    b_code = magnetic_field_strength_code(sample, spin_a=spin_a)
     b_gauss = float(scaling.magnetic_field_gauss(b_code))
     n_e = float(scaling.electron_number_density_cm3(sample.rho))
-    cos_los = 0.0
-    if p_cov is not None and b_code > 0.0:
-        # Coordinate-basis proxy for angle between B and photon spatial covector.
-        k = np.asarray(p_cov[1:], dtype=float)
-        nk = float(np.linalg.norm(k))
-        if nk > 0.0:
-            cos_los = float(np.clip(np.dot(b_vec, k) / (b_code * nk), -1.0, 1.0))
-    evpa = math.atan2(float(b_vec[2]), float(b_vec[1])) if b_code > 0.0 else 0.0
+    cos_los = magnetic_pitch_cosine(sample, p_cov, spin_a=spin_a) if p_cov is not None else 0.0
+    evpa = math.atan2(float(b_hat[2]), float(b_hat[1])) if b_code > 0.0 else 0.0
     return LocalPlasmaFrame(n_e, max(float(sample.theta_e), 1.0e-8), max(b_gauss, 0.0), cos_los, evpa)
 
 

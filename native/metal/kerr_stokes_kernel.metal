@@ -3,6 +3,7 @@ using namespace metal;
 
 struct RenderParams { uint width; uint height; uint nr; uint ntheta; uint nphi; float spin_a; uint max_steps; float step; };
 struct State6 { float t; float r; float th; float ph; float pr; float pth; };
+struct RayLaunch { State6 y; float p_t; float p_phi; };
 
 inline float wrap_phi(float x) { float y = fmod(x, 6.28318530718f); return y < 0.0f ? y + 6.28318530718f : y; }
 inline uint cidx(uint ir, uint it, uint ip, uint c, uint nt, uint np) { return (((ir * nt) + it) * np + ip) * 11u + c; }
@@ -15,6 +16,25 @@ float4x4 metric_contravariant(float r, float theta, float a) {
     g[0][0] = -A / (sig * dlt); g[0][3] = -2.0f * a * r / (sig * dlt); g[3][0] = g[0][3];
     g[1][1] = dlt / sig; g[2][2] = 1.0f / sig; g[3][3] = (dlt - a * a * s2) / (sig * dlt * s2);
     return g;
+}
+
+RayLaunch zamo_camera_ray_initial_state(uint x, uint y, uint width, uint height, float camera_r, float camera_theta, float fov_y, float spin_a) {
+    float ndcx = 2.0f * ((float(x) + .5f) / float(width)) - 1.0f;
+    float ndcy = 1.0f - 2.0f * ((float(y) + .5f) / float(height));
+    float aspect = float(width) / max(float(height), 1.0f), tan_y = tan(.5f * fov_y);
+    float nr = -1.0f, nth = -ndcy * tan_y, nph = ndcx * aspect * tan_y;
+    float invn = rsqrt(nr * nr + nth * nth + nph * nph);
+    nr *= invn; nth *= invn; nph *= invn;
+    float r = camera_r, th = clamp(camera_theta, 1.0e-6f, 3.1415926f - 1.0e-6f), a = spin_a;
+    float ct = cos(th), st = sin(th), s2 = max(st * st, 1.0e-8f);
+    float sig = r * r + a * a * ct * ct, dlt = r * r - 2.0f * r + a * a;
+    float A = (r * r + a * a) * (r * r + a * a) - a * a * dlt * s2;
+    float gtt = -(1.0f - 2.0f * r / sig), gtp = -2.0f * a * r * s2 / sig;
+    float grr = sig / dlt, gth = sig, gpp = A * s2 / sig;
+    float lapse = sqrt(sig * dlt / A), omega = 2.0f * a * r / A;
+    float ptcon = 1.0f / lapse, prcon = nr * sqrt(dlt / sig), pthcon = nth / sqrt(sig), pphcon = omega / lapse + nph / sqrt(gpp);
+    float p_t = gtt * ptcon + gtp * pphcon, p_phi = gtp * ptcon + gpp * pphcon;
+    return RayLaunch{State6{0.0f, r, th, 0.0f, grr * prcon, gth * pthcon}, p_t, p_phi};
 }
 
 void metric_derivative_numeric(float r, float th, float a, thread float4x4& dr, thread float4x4& dth) {
@@ -64,8 +84,8 @@ void stokes_step_rk2(thread float S[4], thread const float c[11], float ds) { fl
 
 kernel void kerr_stokes_render_kernel(device float4* out_stokes [[buffer(0)]], device const float* coeffs [[buffer(1)]], device const float* r_grid [[buffer(2)]], device const float* theta_grid [[buffer(3)]], device const float* phi_grid [[buffer(4)]], constant RenderParams& params [[buffer(5)]], uint2 gid [[thread_position_in_grid]]) {
     if (gid.x >= params.width || gid.y >= params.height) return; uint pix = gid.y * params.width + gid.x;
-    float ndcx = 2.0f * ((float(gid.x) + .5f) / float(params.width)) - 1.0f; float ndcy = 1.0f - 2.0f * ((float(gid.y) + .5f) / float(params.height));
-    State6 s = State6{0.0f,55.0f,1.134464f,0.0f,-1.0f,-.22f*ndcy}; float p_t=-1.0f,p_phi=.12f*ndcx,S[4]={0,0,0,0}; float rplus=1.0f+sqrt(max(1.0f-params.spin_a*params.spin_a,0.0f));
+    RayLaunch launch = zamo_camera_ray_initial_state(gid.x, gid.y, params.width, params.height, 55.0f, 1.134464f, 0.5934119f, params.spin_a);
+    State6 s = launch.y; float p_t=launch.p_t,p_phi=launch.p_phi,S[4]={0,0,0,0}; float rplus=1.0f+sqrt(max(1.0f-params.spin_a*params.spin_a,0.0f));
     for(uint n=0;n<params.max_steps;++n){ State6 prev=s; s=rk2_geodesic_step(s,params.step,p_t,p_phi,params.spin_a); float c[11]; bool valid=sample_brick_trilinear(coeffs,r_grid,theta_grid,phi_grid,params.nr,params.ntheta,params.nphi,.5f*(prev.r+s.r),.5f*(prev.th+s.th),.5f*(prev.ph+s.ph),c); if(valid){ float ds=length(float3(s.r-prev.r,s.th-prev.th,s.ph-prev.ph)); stokes_step_rk2(S,c,ds); } if(s.r<=rplus*1.0002f||s.r>220.0f)break; }
     out_stokes[pix] = float4(S[0],S[1],S[2],S[3]);
 }

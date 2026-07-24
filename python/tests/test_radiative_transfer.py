@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from blackhole_sim.grmhd import generate_analytic_grmhd_torus
 from blackhole_sim.kerr import LocalCamera, camera_ray_initial_state, trace_kerr_null_geodesic
@@ -27,3 +28,12 @@ def test_grrt_integrator_accumulates_nonnegative_intensity():
     assert result.valid_steps >= 0
     assert result.optical_depth >= 0.0
     assert np.all(result.intensity_rgb >= 0.0)
+
+
+def test_validated_mode_rejects_default_proxy_coefficients():
+    snap = generate_analytic_grmhd_torus(spin_a=0.4, nr=8, ntheta=6, nphi=5)
+    cam = LocalCamera.from_degrees(r=35, inclination_degrees=62, fov_y_degrees=28)
+    y0, pt, pph = camera_ray_initial_state(cam, snap.spin_a, 0.0, 0.0, 16 / 9)
+    trace = trace_kerr_null_geodesic(y0, pt, pph, snap.spin_a, step=0.12, max_steps=8, escape_radius=80)
+    with pytest.raises(ValueError, match="validated transfer mode"):
+        integrate_kerr_grrt(trace, snap, cfg=TransferConfig(physics_mode="validated"))

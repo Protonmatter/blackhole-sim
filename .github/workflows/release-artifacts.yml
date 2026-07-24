@@ -1,0 +1,109 @@
+name: Release Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-artifacts-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  python-package:
+    name: python-package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python/pyproject.toml
+      - name: Build Python distribution
+        working-directory: python
+        run: |
+          python -m pip install -U pip build
+          python -m build --sdist --wheel --outdir ../dist/python
+      - name: Smoke install wheel
+        run: |
+          python -m venv .venv-smoke
+          . .venv-smoke/bin/activate
+          python -m pip install -U pip
+          python -m pip install dist/python/blackhole_sim-*.whl
+          python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/python/*
+          if-no-files-found: error
+          retention-days: 30
+
+  native-wheels:
+    name: native-wheel-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: ubuntu-24.04-arm
+          - os: windows-2025
+          - os: windows-11-arm
+          - os: macos-15-intel
+          - os: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install maturin
+        run: python -m pip install -U pip maturin
+      - name: Build native wheel
+        run: maturin build --manifest-path native/core/Cargo.toml --release --out dist/native --features extension-module
+      - name: Smoke install native wheel
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          subprocess.check_call([sys.executable, "-m", "pip", "install", "-e", "./python[dev]"])
+          wheels = sorted(Path("dist/native").glob("blackhole_native-*.whl"))
+          assert wheels, "no native wheel produced"
+          subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", str(wheels[-1])])
+          subprocess.check_call([sys.executable, "-m", "blackhole_sim.accelerator_cli", "doctor", "--json", "--fail-on-emulation"])
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-wheel-${{ matrix.os }}
+          path: dist/native/*
+          if-no-files-found: error
+          retention-days: 30
+
+  artifact-summary:
+    name: artifact-summary
+    if: always()
+    needs: [python-package, native-wheels]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check artifact jobs
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+
+          results = json.loads(r'''${{ toJson(needs) }}''')
+          failed = {name: data["result"] for name, data in results.items() if data["result"] != "success"}
+          if failed:
+              print(failed)
+              sys.exit(1)
+          print("release artifacts built and uploaded; no package or GitHub release was published")
+          PY

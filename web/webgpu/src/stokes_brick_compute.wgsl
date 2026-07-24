@@ -20,6 +20,7 @@ struct RenderParams {
   pad0: u32,
 };
 struct State6 { t: f32, r: f32, th: f32, ph: f32, pr: f32, pth: f32 };
+struct RayLaunch { y: State6, p_t: f32, p_phi: f32 };
 struct BrickSample {
   valid: f32,
   coeffs: array<f32, 11>,
@@ -51,6 +52,40 @@ fn metric_contravariant(r: f32, theta: f32, a: f32) -> mat4x4<f32> {
   g[2][2] = 1.0 / sig;
   g[3][3] = (dlt - a * a * s2) / (sig * dlt * s2);
   return g;
+}
+
+fn zamo_camera_ray_initial_state(px: u32, py: u32) -> RayLaunch {
+  let ndcx = 2.0 * ((f32(px) + 0.5) / f32(params.width)) - 1.0;
+  let ndcy = 1.0 - 2.0 * ((f32(py) + 0.5) / f32(params.height));
+  let aspect = f32(params.width) / max(f32(params.height), 1.0);
+  let tan_y = tan(0.5 * params.fov_y);
+  let n = normalize(vec3<f32>(-1.0, -ndcy * tan_y, ndcx * aspect * tan_y));
+
+  let r = params.camera_r;
+  let th = clamp_theta(params.camera_theta);
+  let a = params.spin_a;
+  let ct = cos(th);
+  let st = sin(th);
+  let s2 = max(st * st, 1.0e-8);
+  let sig = r * r + a * a * ct * ct;
+  let dlt = r * r - 2.0 * r + a * a;
+  let A = (r * r + a * a) * (r * r + a * a) - a * a * dlt * s2;
+  let gtt = -(1.0 - 2.0 * r / sig);
+  let gtphi = -2.0 * a * r * s2 / sig;
+  let grr = sig / dlt;
+  let gthth = sig;
+  let gphiphi = A * s2 / sig;
+  let lapse = sqrt(sig * dlt / A);
+  let omega = 2.0 * a * r / A;
+
+  let pcon_t = 1.0 / lapse;
+  let pcon_r = n.x * sqrt(dlt / sig);
+  let pcon_th = n.y / sqrt(sig);
+  let pcon_ph = omega / lapse + n.z / sqrt(gphiphi);
+  let p_t = gtt * pcon_t + gtphi * pcon_ph;
+  let p_phi = gtphi * pcon_t + gphiphi * pcon_ph;
+  let y = State6(0.0, r, th, 0.0, grr * pcon_r, gthth * pcon_th);
+  return RayLaunch(y, p_t, p_phi);
 }
 
 fn metric_derivative_r(r: f32, th: f32, a: f32) -> mat4x4<f32> {
@@ -152,18 +187,16 @@ fn stokes_step_rk2(S: vec4<f32>, c: array<f32, 11>, ds: f32) -> vec4<f32> {
 }
 
 fn ray_initial_state(px: u32, py: u32) -> State6 {
-  let ndcx = 2.0 * ((f32(px) + 0.5) / f32(params.width)) - 1.0;
-  let ndcy = 1.0 - 2.0 * ((f32(py) + 0.5) / f32(params.height));
-  return State6(0.0, params.camera_r, params.camera_theta, 0.0, -1.0, -0.22 * ndcy);
+  return zamo_camera_ray_initial_state(px, py).y;
 }
 
 fn kerr_stokes_render_kernel(gid: vec3<u32>) {
   if (gid.x >= params.width || gid.y >= params.height) { return; }
   let pix = gid.y * params.width + gid.x;
-  let ndcx = 2.0 * ((f32(gid.x) + 0.5) / f32(params.width)) - 1.0;
-  var y = ray_initial_state(gid.x, gid.y);
-  let p_t = -1.0;
-  let p_phi = 0.12 * ndcx;
+  let launch = zamo_camera_ray_initial_state(gid.x, gid.y);
+  var y = launch.y;
+  let p_t = launch.p_t;
+  let p_phi = launch.p_phi;
   let r_plus = 1.0 + sqrt(max(1.0 - params.spin_a * params.spin_a, 0.0));
   var S = vec4<f32>(0.0);
   let maxSteps = min(params.max_steps, 520u);

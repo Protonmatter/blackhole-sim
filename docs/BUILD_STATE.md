@@ -1,6 +1,6 @@
 # Build State
 
-Date: 2026-06-29
+Date: 2026-07-01
 
 ## Current Milestone
 
@@ -36,6 +36,11 @@ Date: 2026-06-29
 - WebGPU accelerator discovery now reports OS-visible GPU adapters on Windows so direct browser GPU execution can be audited alongside shader availability.
 - The WebGPU browser renderer now reports the granted adapter and labels compute/fragment paths explicitly.
 - CUDA, Metal, HIP, OpenCL, and WebGPU Stokes kernel assets now guard invalid nonperiodic coefficient-brick samples before applying Stokes transfer updates.
+- Added a science-grade validation direction: explicit `educational_proxy` versus `validated` transfer mode, metric-aware local plasma magnetic-field and pitch-angle helpers, and a release-gate roadmap for GRRT validation.
+- Coefficient-brick precomputation and polarized transfer now use the shared metric-aware local plasma helper when snapshot spin is available.
+- WebGPU Stokes compute and static CUDA/Metal/HIP/OpenCL kernel assets now derive launch state and conserved photon momenta through a ZAMO camera helper instead of fixed `p_t`/`p_phi` constants.
+- Installed seven local Codex science skills under `C:\Users\mkang\.codex\skills` for Kerr validation, GRMHD data validation, GRRT transfer, numerical methods, GPU parity, scientific Python quality, and scientific visualization review.
+- Replaced separate Python/native/architecture smoke workflows with a unified CI pipeline plus a manual/tag artifact-delivery workflow and Dependabot update configuration. The artifact workflow uploads review artifacts only; it does not publish packages or releases.
 
 ## Release Boundary
 
@@ -141,6 +146,29 @@ v0.9.0 direct GPU contract local evidence:
 - `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out\stokes_gpu_contract_smoke.npz`: passed; output is ignored and not committed.
 - `maturin build --manifest-path native/core/Cargo.toml --release --out native/core/target/wheels-gpu-contract`: passed and produced `blackhole_native-0.9.0-cp310-abi3-win_arm64.whl`.
 - In-app browser smoke against `http://127.0.0.1:8800/index.html?shader=stokes`: loaded the default WebGPU page, status reported `WebGPU direct compute: Stokes coefficient bricks on qualcomm / adreno-7xx`, and console warnings/errors were empty. Follow-up automation for the opt-in `diagnostics=1` readback path timed out before DOM readback, so GPU readback verification is not claimed here.
+
+v0.9.0 science-grade redirection local evidence:
+
+- `python -m pytest -q tests/test_synchrotron_polarized_transfer.py tests/test_radiative_transfer.py tests/test_native_kernel_assets.py tests/test_kerr.py`: passed.
+- Local Codex skill validation with `quick_validate.py`: passed for `blackhole-gr-kerr-validation`, `blackhole-grmhd-data-validation`, `blackhole-grrt-polarized-transfer`, `blackhole-numerical-methods`, `blackhole-hpc-gpu-parity`, `scientific-python-quality`, and `scientific-visualization-review`.
+- `python -m compileall blackhole_sim`: passed.
+- `python -m pytest -q`: passed with 3 optional skips.
+- `cargo fmt --check --manifest-path native/core/Cargo.toml`: passed.
+- `cargo test --manifest-path native/core/Cargo.toml`: passed; 6 Rust unit tests passed.
+- `python -m blackhole_sim.accelerator_cli doctor --json --fail-on-emulation`: passed; `process_arch=arm64`, `python_arch=arm64`, `native_core_loaded=true`, `native_core_arch=arm64`, `native_core_version=0.9.0`, `gpu_backend=webgpu`, and `emulation_detected=false`.
+- `python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1`: passed; native sampler and Stokes RK2 parity both reported `allclose=true`, `max_abs_diff=0.0`, and `max_rel_diff=0.0`.
+- `python -m blackhole_sim.accelerated_cli --width 32 --height 18 --max-steps 64 --output out\science_redirection_smoke.npz`: passed; output is ignored and not committed.
+- Direct WebGPU browser readback and concrete Illinois v3 selected-dump/ipole validation were not run in this pass, so GPU image parity and external GRRT parity are still not claimed.
+
+v0.9.0 CI/CD pipeline local evidence:
+
+- `.github/workflows/ci.yml` added as the pull-request and `main` validation pipeline, including hygiene, Python, science-contract, Rust, native-wheel, and final required aggregation jobs.
+- `.github/workflows/release-artifacts.yml` added for manual or `v*` tag artifact builds; it uploads artifacts but intentionally does not publish PyPI packages or GitHub releases.
+- `.github/dependabot.yml` added for weekly GitHub Actions, Python, and Cargo update PRs.
+- Local workflow YAML parsing with Python/PyYAML: passed for `.github/workflows/ci.yml`, `.github/workflows/release-artifacts.yml`, and `.github/dependabot.yml`.
+- Tracked-artifact policy check using `git ls-files`: passed; no tracked `.npz`, `.h5`, `.hdf5`, `.png`, `.tiff`, or `.whl` artifacts.
+- `git diff --check`: passed; Windows line-ending warnings are non-blocking.
+- `actionlint` was not available on PATH, so GitHub Actions execution is the next validation layer after push.
 
 ## GitHub CI Evidence
 
