@@ -181,7 +181,7 @@ jobs:
         run: python -m pytest -q python/tests/test_native_stokes_parity.py python/tests/test_native_sampler_parity.py python/tests/test_benchmark.py
       - name: Native benchmark smoke
         run: python -m blackhole_sim.benchmark_cli --json --nr 3 --ntheta 3 --nphi 4 --points 7 --iterations 1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-wheel-${{ matrix.os }}
           path: dist/*
