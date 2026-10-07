@@ -13,4 +13,4 @@ name = "blackhole_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.22.6", features = ["abi3-py310"] }
+pyo3 = { version = "0.29.3", features = ["abi3-py310"] }
