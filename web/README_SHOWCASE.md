@@ -1,39 +1,46 @@
-# Interactive Kerr Black-Hole Simulation Showcase
+# Interactive Kerr black-hole showcase
 
-This package wraps the v0.7 simulator assets in a guided browser session.
+This package provides two browser experiences around the simulator assets.
 
-## Start the session
+## Start locally
 
-From this folder:
+From `web/`:
 
 ```bash
 python -m http.server 8080
 ```
 
-Open:
+## Recommended: cinematic WebGPU renderer
+
+Start with the real WebGPU renderer in its cinematic Explore interface:
+
+```text
+http://localhost:8080/webgpu/
+```
+
+Open the advanced Lab controls without changing canvas or renderer state:
+
+```text
+http://localhost:8080/webgpu/?ui=lab
+```
+
+The WebGPU path includes Kerr thin-disk, GRRT-volume, and Stokes-brick modes.
+It requires a WebGPU-capable browser served from localhost.
+
+## Guided presentation canvas
+
+The guided session remains available at:
 
 ```text
 http://localhost:8080/showcase/
 ```
 
-## What the showcase provides
+It provides narrated controls, hardware profiles, and a broadly compatible
+canvas fallback for demonstrations. This guided canvas is explicitly a
+presentational layer; use the WebGPU renderer, Python CLIs, regression tests,
+and native gates for implementation validation.
 
-- Guided controls for Kerr spin, inclination, camera distance, ray steps, density, magnetic-field scale, Faraday rotation, and Faraday conversion.
-- Hardware profiles:
-  - Surface Snapdragon
-  - Surface Intel Core Ultra 7 268V
-  - desktop preview
-  - workstation CUDA
-- A fast canvas fallback session that opens on any browser.
-- A link into the actual v0.7 WebGPU Stokes renderer:
-
-```text
-http://localhost:8080/webgpu/index.html?shader=stokes
-```
-
-## Important boundary
-
-The guided canvas is a presentation/demo layer. The actual hot-loop implementation is in:
+The simulation hot loops live in:
 
 ```text
 web/webgpu/src/stokes_brick_compute.wgsl
@@ -42,8 +49,6 @@ native/metal/kerr_stokes_kernel.metal
 native/rocm/kerr_stokes_kernel.hip
 native/opencl/kerr_stokes_kernel.cl
 ```
-
-Use the guided session to explain the physics and performance tradeoffs. Use the WebGPU renderer and Python CLIs for implementation validation.
 
 ## CLI smoke tests
 

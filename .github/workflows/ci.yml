@@ -49,6 +49,19 @@ jobs:
       - name: Git whitespace check
         run: git diff --check
 
+  web:
+    name: web
+    needs: hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test dependency-free browser contracts
+        run: node --test web/webgpu/tests/*.test.mjs
+
   python:
     name: python-${{ matrix.os }}-${{ matrix.python-version }}
     needs: hygiene
@@ -191,7 +204,7 @@ jobs:
   required:
     name: ci-required
     if: always()
-    needs: [hygiene, python, science-contracts, rust, native-wheel]
+    needs: [hygiene, web, python, rust, science-contracts, native-wheel]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

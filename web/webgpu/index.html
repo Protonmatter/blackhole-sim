@@ -4,54 +4,170 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="data:," />
-  <title>Kerr WebGPU Simulation Tool</title>
+  <title>BlackHole Sim — Kerr WebGPU Simulation</title>
   <style>
-    :root { color-scheme: dark; --panel: rgba(10, 12, 15, .78); --line: rgba(255,255,255,.18); --text: #e8edf2; --muted: #aeb9c5; --accent: #36a3ff; }
+    :root {
+      color-scheme: dark;
+      --glass: rgba(5, 8, 14, .7);
+      --glass-strong: rgba(8, 11, 17, .9);
+      --line: rgba(255, 255, 255, .18);
+      --text: #f4f7fb;
+      --muted: #aab6c4;
+      --accent: #65b8ff;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .38);
+    }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #050508; color: var(--text); font-family: system-ui, sans-serif; }
-    canvas { width: 100vw; height: 100vh; display: block; cursor: grab; touch-action: none; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #020307;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    canvas {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      cursor: grab;
+      touch-action: none;
+    }
     canvas:active { cursor: grabbing; }
-    #panel { position: fixed; left: 12px; top: 12px; width: min(720px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; backdrop-filter: blur(10px); }
-    .topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-    .title { min-width: 0; }
-    .title strong { display: block; font-size: 15px; line-height: 1.2; }
-    #status { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-    .toolbar, .preset-row, .quality-row { display: flex; flex-wrap: wrap; gap: 6px; }
-    button { min-height: 30px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: rgba(255,255,255,.08); font: inherit; font-size: 12px; cursor: pointer; }
-    button[aria-pressed="true"], button.active { border-color: rgba(54,163,255,.72); background: rgba(54,163,255,.22); }
+    canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -5px; }
+    #hud {
+      position: fixed;
+      z-index: 2;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      pointer-events: none;
+    }
+    .identity,
+    .toolbar {
+      pointer-events: auto;
+      border: 1px solid var(--line);
+      background: var(--glass);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px) saturate(1.2);
+      -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    }
+    .identity {
+      min-width: min(360px, calc(100vw - 36px));
+      max-width: 520px;
+      padding: 14px 16px;
+      border-radius: 12px;
+    }
+    .identity strong {
+      display: block;
+      font-size: clamp(17px, 2vw, 22px);
+      line-height: 1.1;
+      letter-spacing: .01em;
+    }
+    .subtitle { display: block; margin-top: 4px; font-size: 13px; }
+    .boundary { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+    #status { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+      padding: 7px;
+      border-radius: 10px;
+    }
+    button {
+      min-height: 32px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--text);
+      background: rgba(255, 255, 255, .08);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button:hover { background: rgba(255, 255, 255, .14); }
+    button[aria-pressed="true"], button.active { border-color: rgba(101, 184, 255, .8); background: rgba(54, 163, 255, .24); }
     button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    #labPanel {
+      position: fixed;
+      z-index: 3;
+      left: 18px;
+      bottom: 18px;
+      width: min(720px, calc(100vw - 36px));
+      max-height: min(58vh, 580px);
+      overflow: auto;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--glass-strong);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px) saturate(1.2);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(12px);
+      transition: opacity 180ms ease, transform 180ms ease, visibility 180ms step-end;
+    }
+    body[data-ui="lab"] #labPanel {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      transition-timing-function: ease, ease, step-start;
+    }
+    body[data-ui="film"] #hud,
+    body[data-ui="film"] #labPanel { display: none; }
+    html[data-blackhole-error] body[data-ui="film"] #hud { display: block; }
+    html[data-blackhole-error] body[data-ui="film"] #hud .toolbar { display: none; }
+    .lab-heading { margin: 0 0 10px; color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
     .control-grid { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 4px 16px; }
     label.control { display: grid; grid-template-columns: 92px minmax(120px, 1fr) 58px; gap: 8px; align-items: center; min-height: 30px; font-size: 13px; }
     label.control output { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
     input, select { width: 100%; }
     input[type="range"] { accent-color: var(--accent); }
-    .full { grid-column: 1 / -1; }
     .sim-strip { display: grid; grid-template-columns: 92px minmax(120px, 1fr) 58px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+    .preset-row, .quality-row { display: flex; flex-wrap: wrap; gap: 6px; }
     .preset-row { margin: 10px 0 8px; }
     .telemetry { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 6px 12px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; }
     .telemetry div { min-width: 0; }
     .telemetry dt { color: var(--muted); }
     .telemetry dd { margin: 1px 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-    code { color: #9fd; }
-    @media (max-width: 680px) {
-      #panel { width: calc(100vw - 16px); left: 8px; top: 8px; padding: 10px; }
-      .topline { display: grid; }
+    .units { margin-top: 8px; color: var(--muted); font-size: 12px; }
+    code { color: #a9ffe3; }
+    @media (max-width: 760px) {
+      #hud { top: 8px; left: 8px; right: 8px; display: grid; gap: 8px; }
+      .identity { min-width: 0; width: 100%; padding: 11px 12px; }
+      .toolbar { justify-self: start; justify-content: flex-start; }
+      #labPanel { left: 8px; bottom: 8px; width: calc(100vw - 16px); max-height: 56vh; padding: 10px; }
       .control-grid, .telemetry { grid-template-columns: 1fr; }
       label.control, .sim-strip { grid-template-columns: 86px minmax(100px, 1fr) 52px; }
     }
+    @media (prefers-reduced-motion: reduce) {
+      #labPanel { transition: none; }
+    }
   </style>
 </head>
-<body>
-  <canvas id="view"></canvas>
-  <div id="panel">
-    <div class="topline">
-      <div class="title"><strong>Kerr WebGPU Simulation</strong><span id="status"></span></div>
-      <div class="toolbar">
-        <button id="playToggle" type="button" aria-pressed="true">Pause</button>
-        <button id="resetView" type="button">Reset</button>
-        <button id="captureFrame" type="button">Capture</button>
-      </div>
+<body data-ui="explore">
+  <canvas id="view" tabindex="0" aria-label="Interactive black hole view. Drag to orbit, use the mouse wheel to zoom, press Space to pause or run, and press R to reset."></canvas>
+  <header id="hud">
+    <div class="identity">
+      <strong>BlackHole Sim</strong>
+      <span class="subtitle">Interactive Kerr spacetime</span>
+      <span class="boundary">Educational browser renderer</span>
+      <span id="status" role="status" aria-live="polite" aria-atomic="true"></span>
     </div>
+    <div class="toolbar" aria-label="Simulation controls">
+      <button id="playToggle" type="button" aria-pressed="true">Pause</button>
+      <button id="resetView" type="button">Reset</button>
+      <button id="captureFrame" type="button">Capture</button>
+      <button id="labToggle" type="button" aria-pressed="false">Open Lab</button>
+    </div>
+  </header>
+  <aside id="labPanel" aria-hidden="true" inert>
+    <h2 class="lab-heading">Simulation Lab</h2>
     <div class="control-grid">
       <label class="control">shader <select id="shader"><option value="disk">thin disk</option><option value="volume">GRRT volume</option><option value="stokes">Stokes bricks</option></select><output></output></label>
       <div class="sim-strip">quality <div class="quality-row" id="qualityControls"><button type="button" data-quality="fast">Fast</button><button type="button" data-quality="balanced">Balanced</button><button type="button" data-quality="detail">Detail</button><button type="button" data-quality="ultra">Ultra</button></div><output id="qualityOut"></output></div>
@@ -78,8 +194,8 @@
       <div><dt>ISCO</dt><dd id="iscoValue">--</dd></div>
       <div><dt>readback</dt><dd id="diagnosticsValue">off</dd></div>
     </dl>
-    <div style="font-size:12px; opacity:.75; margin-top:8px">Units: <code>G=c=M=1</code>. Local WebGPU backend.</div>
-  </div>
+    <div class="units">Units: <code>G=c=M=1</code>. Local WebGPU backend.</div>
+  </aside>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

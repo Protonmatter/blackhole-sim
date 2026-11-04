@@ -46,6 +46,19 @@ def test_webgpu_main_has_progressive_compute_renderer_hooks():
     for token in interaction_tokens:
         assert token in text
 
+    refinement_tokens = [
+        "nextRefinementState",
+        "interactionVersion: simulationState.interactionVersion",
+        "levelCount: levels.length",
+        "forceFull",
+    ]
+    for token in refinement_tokens:
+        assert token in text
+    assert "% levels.length" not in text
+    assert "async function createStokesRenderer()" in text
+    assert "async function createFragmentRenderer()" in text
+    assert "function startInteractiveLoop(activeRenderer)" in text
+
     display = (root / "web/webgpu/src/display_stokes.wgsl").read_text(encoding="utf-8")
     assert "log(1.0 + 0.42 * I)" in display
     assert "smoothstep(0.015, 0.55, signal)" in display
