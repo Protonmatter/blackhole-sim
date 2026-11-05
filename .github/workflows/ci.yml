@@ -60,7 +60,7 @@ jobs:
         with:
           node-version: "22"
       - name: Test dependency-free browser contracts
-        run: node --test web/webgpu/tests/*.test.mjs
+        run: node --test web/webgpu/tests/ui_state.test.mjs web/webgpu/tests/runtime_control.test.mjs
 
   python:
     name: python-${{ matrix.os }}-${{ matrix.python-version }}

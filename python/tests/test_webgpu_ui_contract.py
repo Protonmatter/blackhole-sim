@@ -191,5 +191,8 @@ def test_ci_requires_dependency_free_web_tests():
     assert "web:" in workflow
     assert "actions/setup-node@v4" in workflow
     assert 'node-version: "22"' in workflow
-    assert "node --test web/webgpu/tests/*.test.mjs" in workflow
+    assert (
+        "node --test web/webgpu/tests/ui_state.test.mjs "
+        "web/webgpu/tests/runtime_control.test.mjs"
+    ) in workflow
     assert "needs: [hygiene, web, python, rust, science-contracts, native-wheel]" in workflow

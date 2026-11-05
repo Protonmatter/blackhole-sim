@@ -151,7 +151,7 @@
   </style>
 </head>
 <body data-ui="explore">
-  <canvas id="view" tabindex="0" aria-label="Interactive black hole view. Drag to orbit, use the mouse wheel to zoom, press Space to pause or run, and press R to reset."></canvas>
+  <canvas id="view" tabindex="0" aria-label="Interactive black hole view. Drag horizontally to adjust spin and vertically to adjust inclination, use the mouse wheel to change camera radius, press Space to pause or run, and press R to reset."></canvas>
   <header id="hud">
     <div class="identity">
       <strong>BlackHole Sim</strong>
@@ -162,7 +162,7 @@
     <div class="toolbar" aria-label="Simulation controls">
       <button id="playToggle" type="button" aria-pressed="true">Pause</button>
       <button id="resetView" type="button">Reset</button>
-      <button id="captureFrame" type="button">Capture</button>
+      <button id="captureFrame" type="button" disabled>Capture</button>
       <button id="labToggle" type="button" aria-pressed="false">Open Lab</button>
     </div>
   </header>

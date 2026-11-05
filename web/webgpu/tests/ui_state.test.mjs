@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  MAX_SIMULATION_TIME_SECONDS,
   nextRefinementState,
   parseFilmConfig,
   resolveInitialRunning,
   resolveUiMode,
+  sanitizeSimulationTime,
 } from '../src/ui_state.mjs';
 
 test('Explore is the default and film overrides Lab', () => {
@@ -57,6 +59,21 @@ test('invalid and fractional film values produce finite integer output', () => {
   assert.ok(Number.isInteger(fractional.width));
   assert.ok(Number.isFinite(fractional.height));
   assert.ok(Number.isInteger(fractional.height));
+});
+
+test('simulation time stays inside the supported browser GPU range', () => {
+  assert.equal(
+    parseFilmConfig(new URLSearchParams('film=1&t=1e308')).timeSeconds,
+    MAX_SIMULATION_TIME_SECONDS,
+  );
+  assert.equal(sanitizeSimulationTime('1e308'), MAX_SIMULATION_TIME_SECONDS);
+  assert.equal(sanitizeSimulationTime('-12'), 0);
+  assert.equal(sanitizeSimulationTime('-12', true), -12);
+  assert.equal(
+    sanitizeSimulationTime('-1e308', true),
+    -MAX_SIMULATION_TIME_SECONDS,
+  );
+  assert.equal(sanitizeSimulationTime('not-a-number'), 0);
 });
 
 test('reduced motion pauses only when running was not explicit', () => {

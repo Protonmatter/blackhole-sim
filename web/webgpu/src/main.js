@@ -1,4 +1,15 @@
-import { nextRefinementState, parseFilmConfig, resolveInitialRunning, resolveUiMode } from './ui_state.mjs';
+import {
+  nextRefinementState,
+  parseFilmConfig,
+  resolveInitialRunning,
+  resolveUiMode,
+  sanitizeSimulationTime,
+} from './ui_state.mjs';
+import {
+  captureSubmittedFrame,
+  createExclusiveOperationRunner,
+  watchGpuDevice,
+} from './runtime_control.mjs';
 
 const canvas = document.getElementById('view');
 const statusEl = document.getElementById('status');
@@ -58,7 +69,7 @@ const PRESETS = Object.freeze({
 const simulationState = {
   running: resolveInitialRunning(params, prefersReducedMotion),
   quality: params.get('quality') && QUALITY[params.get('quality')] ? params.get('quality') : DEFAULTS.quality,
-  timeSeconds: Number.parseFloat(params.get('time') || '0') || 0,
+  timeSeconds: sanitizeSimulationTime(params.get('time'), true),
   lastTimestampMs: null,
   frameMs: 0,
   telemetryAtMs: 0,
@@ -70,6 +81,7 @@ let device = null;
 let context = null;
 let format = null;
 let adapterInfoText = '';
+let gpuRuntime = null;
 
 function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -186,7 +198,11 @@ async function assertShaderCompiles(shaderModule, label) {
 }
 
 function setGpuStatus(mode) {
-  statusEl.textContent = adapterInfoText ? `${mode} on ${adapterInfoText}` : mode;
+  const update = () => {
+    statusEl.textContent = adapterInfoText ? `${mode} on ${adapterInfoText}` : mode;
+  };
+  if (gpuRuntime) gpuRuntime.runIfHealthy(update);
+  else update();
 }
 
 function activeRenderScale() {
@@ -243,7 +259,12 @@ function updateSimulationClock(timeMs) {
   const dt = clampNumber((timeMs - simulationState.lastTimestampMs) * 0.001, 0, 0.12);
   simulationState.lastTimestampMs = timeMs;
   simulationState.frameMs = 0.85 * simulationState.frameMs + 0.15 * (dt * 1000);
-  if (simulationState.running) simulationState.timeSeconds += dt * numericValue(sliders.timeScale);
+  if (simulationState.running) {
+    simulationState.timeSeconds = sanitizeSimulationTime(
+      simulationState.timeSeconds + dt * numericValue(sliders.timeScale),
+      true,
+    );
+  }
 }
 
 function updateTelemetry(timeMs) {
@@ -611,8 +632,8 @@ function installUiHandlers() {
   });
   captureFrameButton.addEventListener('click', async () => {
     try {
-      if (device) await device.queue.onSubmittedWorkDone();
-      const encoded = await canvasBlobToBase64('image/png');
+      if (!window.__blackhole) throw new Error('Renderer is not ready');
+      const encoded = await window.__blackhole.frame('image/png');
       const a = document.createElement('a');
       a.href = `data:image/png;base64,${encoded}`;
       a.download = `blackhole-${shaderSelect.value}-${Date.now()}.png`;
@@ -663,8 +684,10 @@ function errorMessage(error) {
 }
 
 function markBlackholeReady() {
+  if (gpuRuntime) gpuRuntime.assertHealthy();
   delete document.documentElement.dataset.blackholeError;
   document.documentElement.dataset.blackholeReady = 'true';
+  captureFrameButton.disabled = false;
 }
 
 function markBlackholeError(error) {
@@ -672,6 +695,13 @@ function markBlackholeError(error) {
   delete document.documentElement.dataset.blackholeReady;
   document.documentElement.dataset.blackholeError = message;
   statusEl.textContent = message;
+  captureFrameButton.disabled = true;
+}
+
+function beginBlackholeWork() {
+  delete document.documentElement.dataset.blackholeReady;
+  delete document.documentElement.dataset.blackholeError;
+  captureFrameButton.disabled = true;
 }
 
 function snapshotState() {
@@ -689,28 +719,57 @@ function snapshotState() {
 }
 
 function installPublicApi(activeRenderer) {
+  const runExclusive = createExclusiveOperationRunner();
   window.__blackhole = Object.freeze({
     state() {
       return snapshotState();
     },
     async renderAt(seconds) {
-      const parsed = Number(seconds);
-      const safeSeconds = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-      setPlayState(false);
-      simulationState.timeSeconds = safeSeconds;
-      simulationState.lastTimestampMs = null;
-      simulationState.forceFull = true;
-      simulationState.interactionVersion += 1;
-      resize();
-      activeRenderer.renderFrame(safeSeconds * 1000, { forceFull: true });
-      updateTelemetry(safeSeconds * 1000);
-      await device.queue.onSubmittedWorkDone();
-      markBlackholeReady();
-      return snapshotState();
+      return runExclusive(async () => {
+        beginBlackholeWork();
+        try {
+          gpuRuntime.assertHealthy();
+          const safeSeconds = sanitizeSimulationTime(seconds);
+          setPlayState(false);
+          simulationState.timeSeconds = safeSeconds;
+          simulationState.lastTimestampMs = null;
+          simulationState.forceFull = true;
+          simulationState.interactionVersion += 1;
+          resize();
+          activeRenderer.renderFrame(safeSeconds * 1000, { forceFull: true });
+          updateTelemetry(safeSeconds * 1000);
+          await device.queue.onSubmittedWorkDone();
+          gpuRuntime.assertHealthy();
+          markBlackholeReady();
+          return snapshotState();
+        } catch (error) {
+          markBlackholeError(error);
+          throw error;
+        }
+      });
     },
     async frame(type = 'image/png', quality = 0.95) {
-      await device.queue.onSubmittedWorkDone();
-      return canvasBlobToBase64(type, quality);
+      return runExclusive(async () => {
+        beginBlackholeWork();
+        try {
+          gpuRuntime.assertHealthy();
+          const forceFull = simulationState.forceFull || filmConfig.enabled;
+          const frameTimeMs = forceFull
+            ? simulationState.timeSeconds * 1000
+            : performance.now();
+          const encoded = await captureSubmittedFrame({
+            render: () => activeRenderer.renderFrame(frameTimeMs, { forceFull }),
+            encode: () => canvasBlobToBase64(type, quality),
+            submitted: () => device.queue.onSubmittedWorkDone(),
+          });
+          gpuRuntime.assertHealthy();
+          markBlackholeReady();
+          return encoded;
+        } catch (error) {
+          markBlackholeError(error);
+          throw error;
+        }
+      });
     },
   });
 }
@@ -724,13 +783,15 @@ function renderInteractiveFrame(activeRenderer, timeMs) {
 
 function startInteractiveLoop(activeRenderer) {
   function frame(timeMs) {
+    if (gpuRuntime && gpuRuntime.failed) return;
     try {
       renderInteractiveFrame(activeRenderer, timeMs);
     } catch (error) {
-      markBlackholeError(error);
+      if (gpuRuntime) gpuRuntime.fail(error);
+      else markBlackholeError(error);
       return;
     }
-    requestAnimationFrame(frame);
+    if (!gpuRuntime || !gpuRuntime.failed) requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 }
@@ -774,6 +835,7 @@ delete document.documentElement.dataset.blackholeError;
 let startupValidationScopeOpen = false;
 try {
   await initializeWebGPU();
+  gpuRuntime = watchGpuDevice(device, markBlackholeError);
   device.pushErrorScope('validation');
   startupValidationScopeOpen = true;
   const activeRenderer = shaderSelect.value === 'stokes'

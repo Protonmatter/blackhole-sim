@@ -20,7 +20,7 @@
 - Do not add a framework, bundler, npm dependency, generated capture, binary artifact, or checked-in render output.
 - Preserve all existing URL parameters and Lab control semantics.
 - Default UI is Explore; `ui=lab` opens Lab; `film=1` overrides both and hides all UI.
-- Film defaults are `t=0`, `w=1280`, and `h=720`; clamp width to `64..1920`, height to `64..1080`, and time to a finite value `>= 0`.
+- Film defaults are `t=0`, `w=1280`, and `h=720`; clamp width to `64..1920`, height to `64..1080`, and time to `0..100000` seconds.
 - Explore must say `Educational browser renderer` and must not claim `validated`, `accurate`, or `physics-equivalent` rendering.
 - Never claim GPU/native physics parity from these presentation changes.
 - Per repository policy, do not commit, push, tag, or publish unless the human explicitly authorizes it. Each task includes a suggested commit message only as an optional checkpoint.
@@ -29,6 +29,8 @@
 
 - Create `web/webgpu/src/ui_state.mjs`: pure URL, reduced-motion, film-config, and progressive-refinement state logic.
 - Create `web/webgpu/tests/ui_state.test.mjs`: dependency-free Node unit tests for that pure module.
+- Create `web/webgpu/src/runtime_control.mjs`: dependency-free capture ordering and GPU-device lifecycle control.
+- Create `web/webgpu/tests/runtime_control.test.mjs`: orchestration tests for delayed capture, uncaptured errors, and device loss.
 - Create `python/tests/test_webgpu_ui_contract.py`: semantic HTML and browser-entrypoint source contracts that do not require a GPU.
 - Modify `web/webgpu/index.html`: cinematic HUD, accessible canvas, hidden/inert Lab panel, film-mode styles, and responsive/reduced-motion CSS.
 - Modify `web/webgpu/src/main.js`: mode wiring, preserved URL state, monotonic refinement integration, renderer factories, central scheduler, deterministic API, readiness/error markers, and capture reuse.
@@ -44,6 +46,26 @@
 - Rapid interaction and resize: Tasks 1 and 3 test that either invalidates refinement, which then advances monotonically and never wraps.
 - Invalid film input: Task 1 tests absent, non-numeric, infinite, negative, and oversized `t/w/h` values against exact defaults and clamps.
 - WebGPU or shader startup failure: Task 4 tests that the source installs an error marker and never marks readiness on failure; the browser smoke verifies the visible fallback remains usable.
+
+## Production-Readiness Review Addendum (2026-11-05)
+
+- Values may be finite in JavaScript yet overflow browser `f32` uniforms or
+  intermediate phase arithmetic. Clamp URL time, film time, animation advance,
+  and `renderAt` to the documented browser presentation range.
+- A delayed canvas export must submit a fresh frame and begin its snapshot before
+  the WebGPU presentation buffer can be recycled. Runtime acceptance must decode
+  the PNG, confirm its exact dimensions, and reject blank or uniform output;
+  positive base64 length alone is insufficient.
+- Treat `device.lost` and uncaptured GPU errors as terminal for the page:
+  readiness clears, the RAF loop stops, an error marker becomes visible, and
+  later public API calls reject.
+- Reject overlapping `renderAt`/`frame` calls so shared simulation state and the
+  presentation texture have exactly one owner per deterministic operation.
+- A fallback-only smoke is useful failure-path evidence but is not sufficient for
+  production acceptance. Record at least one successful disk, volume, and Stokes
+  run on a supported WebGPU adapter, including delayed nonblank capture.
+- Keep the hardening layer outside WGSL, coefficient formulas, geodesics,
+  radiative transfer, Python/native physics, and parity tolerances.
 
 ---
 
@@ -118,7 +140,8 @@ Use named exports and JSDoc types. Exact rules:
 - `film=1` is the only value that enables film.
 - `ui=lab` is the only value that selects Lab; everything else selects Explore.
 - An explicit `running=0` is false and explicit `running=1` is true. With no explicit value, reduced motion returns false and all other users return true.
-- Parse time with `Number.parseFloat`; non-finite or negative becomes `0`.
+- Parse time with `Number.parseFloat`; non-finite or negative becomes `0`, and
+  values above `100000` seconds clamp to `100000`.
 - Parse dimensions with `Number.parseInt(..., 10)`; non-finite input uses the default, then clamp width to `64..1920` and height to `64..1080`.
 - Refinement invalidates on first call, interaction-version change, or dimension change. It advances one index per complete `850 ms` since invalidation, uses `Math.max(previous.levelIndex, computedIndex)` when inputs are unchanged, clamps to the last index, never uses modulo, and honors `forceFull`.
 
@@ -316,6 +339,8 @@ git commit -m "fix: hold final WebGPU refinement level"
 
 **Files:**
 - Modify: `web/webgpu/src/main.js:160-170, 323-483, 521-596`
+- Create: `web/webgpu/src/runtime_control.mjs`
+- Create: `web/webgpu/tests/runtime_control.test.mjs`
 - Modify: `python/tests/test_webgpu_ui_contract.py`
 - Modify: `python/tests/test_webgpu_progressive_assets.py`
 
@@ -390,8 +415,9 @@ Add one serializable state snapshot with exact keys:
 Install `window.__blackhole` after the active renderer exists:
 
 - `state()` returns a fresh snapshot.
-- `renderAt(seconds)` sanitizes to a finite non-negative number, pauses via `setPlayState(false)`, assigns `simulationState.timeSeconds`, sets `simulationState.forceFull = true`, increments `interactionVersion`, resizes, renders once with `{ forceFull: true }`, awaits `device.queue.onSubmittedWorkDone()`, sets readiness, and returns `state()`.
-- `frame(type = 'image/png', quality = 0.95)` awaits submitted work, calls `canvas.toBlob`, rejects if encoding returns null, converts the blob bytes to a base64 string in bounded chunks, and returns it without a data-URL prefix.
+- `renderAt(seconds)` sanitizes to `0..100000` seconds, pauses via `setPlayState(false)`, assigns `simulationState.timeSeconds`, sets `simulationState.forceFull = true`, increments `interactionVersion`, resizes, renders once with `{ forceFull: true }`, awaits `device.queue.onSubmittedWorkDone()`, sets readiness, and returns `state()`.
+- `frame(type = 'image/png', quality = 0.95)` submits a fresh frame, begins `canvas.toBlob` synchronously before the presentation buffer can be recycled, awaits both encoding and submitted GPU work, rejects if encoding returns null, converts the blob bytes to a base64 string in bounded chunks, and returns it without a data-URL prefix.
+- `renderAt` and `frame` reject overlapping calls with a clear busy error; they never mutate shared simulation state or use the presentation texture concurrently.
 
 Introduce `markInteraction()` as the only user-driven increment path for
 `interactionVersion`; it also clears `simulationState.forceFull`. Route slider,
@@ -421,7 +447,7 @@ Wrap WebGPU initialization, shader fetch/compile setup, renderer creation, and f
 Run:
 
 ```bash
-node --test web/webgpu/tests/ui_state.test.mjs
+node --test web/webgpu/tests/ui_state.test.mjs web/webgpu/tests/runtime_control.test.mjs
 cd python
 python -m pytest -q tests/test_webgpu_ui_contract.py tests/test_webgpu_progressive_assets.py tests/test_web_showcase_workflow.py
 ```
@@ -453,7 +479,7 @@ Expected: `same === true`, `bytes > 0`, `ready === 'true'`, `a.timeSeconds === 4
 Do not commit without explicit authorization. If authorization exists:
 
 ```bash
-git add web/webgpu/src/main.js python/tests/test_webgpu_ui_contract.py python/tests/test_webgpu_progressive_assets.py
+git add web/webgpu/src/main.js web/webgpu/src/runtime_control.mjs web/webgpu/tests/runtime_control.test.mjs python/tests/test_webgpu_ui_contract.py python/tests/test_webgpu_progressive_assets.py
 git commit -m "feat: add deterministic WebGPU frame capture"
 ```
 
@@ -479,7 +505,7 @@ Add `test_ci_requires_dependency_free_web_tests` to `python/tests/test_webgpu_ui
 assert "web:" in workflow
 assert "actions/setup-node@v4" in workflow
 assert 'node-version: "22"' in workflow
-assert "node --test web/webgpu/tests/*.test.mjs" in workflow
+assert "node --test web/webgpu/tests/ui_state.test.mjs web/webgpu/tests/runtime_control.test.mjs" in workflow
 assert "needs: [hygiene, web, python, rust, science-contracts, native-wheel]" in workflow
 ```
 
@@ -499,7 +525,7 @@ In `.github/workflows/ci.yml`, add a job named `web` that:
 - runs on `ubuntu-24.04` with a 10-minute timeout;
 - checks out the repository;
 - uses `actions/setup-node@v4` with Node `22`;
-- runs `node --test web/webgpu/tests/*.test.mjs` from the repository root.
+- runs `node --test web/webgpu/tests/ui_state.test.mjs web/webgpu/tests/runtime_control.test.mjs` from the repository root, so omitting either runtime file fails CI.
 
 Add `web` to the exact `required.needs` list asserted above. Do not add npm install or a lockfile.
 

@@ -30,17 +30,18 @@ http://localhost:8080/webgpu/?shader=stokes&quality=fast&steps=80&film=1&t=4&w=6
 - `film=1` hides the interface, renders one deterministic frame, and takes
   precedence over `ui=lab`.
 
-Film mode accepts `t` in non-negative seconds, `w` from 64–1920 pixels, and
-`h` from 64–1080 pixels. Absent or nonnumeric values use `t=0`, `w=1280`,
-and `h=720`; numeric dimensions are truncated to integers and clamped to their
-limits. Existing `shader`, `quality`, `running`, camera, transfer, step, and
-diagnostics query parameters continue to work.
+Film mode accepts `t` from 0–100000 seconds, `w` from 64–1920 pixels, and `h`
+from 64–1080 pixels. Absent or nonnumeric values use `t=0`, `w=1280`, and
+`h=720`; numeric values are clamped to their limits and dimensions are
+truncated to integers. Existing `shader`, `quality`, `running`, camera,
+transfer, step, and diagnostics query parameters continue to work.
 
 ## Interaction and motion
 
-Drag to orbit, use the wheel to change camera radius, press Space to pause or
-run, and press R to reset. The Lab panel exposes shader, quality, physical
-controls, presets, and telemetry without loading a second renderer.
+Drag horizontally to adjust spin and vertically to adjust inclination, use the
+wheel to change camera radius, press Space to pause or run, and press R to
+reset. The Lab panel exposes shader, quality, physical controls, presets, and
+telemetry without loading a second renderer.
 
 When the operating system requests reduced motion and the URL does not include
 an explicit `running=0` or `running=1`, simulation time starts paused. Rendering
@@ -53,15 +54,23 @@ After renderer creation, `window.__blackhole` exposes:
 - `state()` — returns a fresh serializable snapshot with UI mode, film and
   readiness flags, shader, quality, run state, simulation time, resolution, and
   interaction version.
-- `await renderAt(seconds)` — pauses time, renders the requested non-negative
-  simulation time at full refinement, waits for GPU completion, and returns the
-  state snapshot.
-- `await frame(type = 'image/png', quality = 0.95)` — waits for submitted GPU
-  work and returns base64-encoded image bytes without a data-URL prefix.
+- `await renderAt(seconds)` — pauses time, renders the requested time clamped to
+  0–100000 seconds at full refinement, waits for GPU completion, and returns
+  the state snapshot.
+- `await frame(type = 'image/png', quality = 0.95)` — submits a fresh frame,
+  begins the canvas snapshot before the presentation buffer can be recycled,
+  waits for GPU completion, and returns base64-encoded image bytes without a
+  data-URL prefix.
+
+`renderAt` and `frame` are exclusive operations. If one is already running, an
+overlapping call rejects with a busy error instead of racing the shared canvas
+or simulation state; retry after the first promise settles.
 
 Automation can wait for
-`document.documentElement.dataset.blackholeReady === 'true'`. Startup failures
-set `data-blackhole-error` and leave the ready marker absent.
+`document.documentElement.dataset.blackholeReady === 'true'`. Startup failures,
+device loss, and uncaptured GPU errors set `data-blackhole-error`, leave the
+ready marker absent, stop interactive rendering, and make later API work reject
+until the page is reloaded.
 
 Example:
 

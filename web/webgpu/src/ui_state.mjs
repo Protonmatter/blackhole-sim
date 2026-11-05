@@ -5,6 +5,7 @@ const FILM_MAX_WIDTH = 1920;
 const FILM_MIN_HEIGHT = 64;
 const FILM_MAX_HEIGHT = 1080;
 const REFINEMENT_INTERVAL_MS = 850;
+export const MAX_SIMULATION_TIME_SECONDS = 100_000;
 
 /**
  * @param {URLSearchParams} params
@@ -15,9 +16,19 @@ export function resolveUiMode(params) {
   return params.get('ui') === 'lab' ? 'lab' : 'explore';
 }
 
-function finiteNonNegative(value, fallback) {
+/**
+ * Keep presentation time finite for JavaScript arithmetic and f32 uniforms.
+ * Negative time remains available only to the legacy interactive URL state.
+ *
+ * @param {unknown} value
+ * @param {boolean} allowNegative
+ * @returns {number}
+ */
+export function sanitizeSimulationTime(value, allowNegative = false) {
   const parsed = Number.parseFloat(value ?? '');
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+  if (!Number.isFinite(parsed)) return 0;
+  const minimum = allowNegative ? -MAX_SIMULATION_TIME_SECONDS : 0;
+  return Math.min(MAX_SIMULATION_TIME_SECONDS, Math.max(minimum, parsed));
 }
 
 function boundedInteger(value, fallback, minimum, maximum) {
@@ -33,7 +44,7 @@ function boundedInteger(value, fallback, minimum, maximum) {
 export function parseFilmConfig(params) {
   return {
     enabled: params.get('film') === '1',
-    timeSeconds: finiteNonNegative(params.get('t'), 0),
+    timeSeconds: sanitizeSimulationTime(params.get('t')),
     width: boundedInteger(
       params.get('w'),
       FILM_DEFAULT_WIDTH,

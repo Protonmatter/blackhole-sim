@@ -64,8 +64,9 @@ visual review, and future regression automation.
 - `ui=lab` opens Lab; absent or invalid `ui` opens Explore. `film=1` overrides
   both and hides all UI.
 - Film dimensions default to `1280x720` and clamp independently to width
-  `64..1920` and height `64..1080`. Film time defaults to `0` and clamps to a
-  finite value greater than or equal to `0`.
+  `64..1920` and height `64..1080`. Film time defaults to `0` and clamps to
+  `0..100000` seconds so JavaScript intermediates and browser `f32` uniforms
+  remain finite.
 - Film mode renders at exact requested canvas dimensions, forces the final
   progressive level, does not advance simulation time from `requestAnimationFrame`,
   and sets `document.documentElement.dataset.blackholeReady = "true"` only
@@ -86,10 +87,11 @@ whose visibility is controlled by `body[data-ui]`, `aria-hidden`, and `inert`.
 The mode toggle updates the URL with `history.replaceState` and never recreates
 the renderer.
 
-Extract only deterministic, DOM-independent state logic into
-`web/webgpu/src/ui_state.mjs`. The existing `main.js` continues to own DOM,
-WebGPU resources, and the render loop. This gives Node's built-in test runner a
-small pure module to exercise without introducing a frontend toolchain.
+Extract deterministic, DOM-independent state logic into
+`web/webgpu/src/ui_state.mjs` and capture/device-lifecycle orchestration into
+`web/webgpu/src/runtime_control.mjs`. The existing `main.js` continues to own
+DOM, WebGPU resources, and the render loop. This gives Node's built-in test
+runner small pure modules to exercise without introducing a frontend toolchain.
 
 Centralize frame scheduling in `main.js`: each renderer factory returns one
 `renderFrame(timeMs)` function instead of starting its own animation loop. The
@@ -142,14 +144,20 @@ the cost of two applications now. Deferred.
   - `state(): object` returning serializable UI, simulation, resolution, and
     readiness state;
   - `renderAt(seconds: number): Promise<object>` pausing wall-clock animation,
-    rendering full refinement at the requested non-negative finite time, waiting
-    for submitted GPU work, keeping full refinement selected until the next user
-    interaction, marking readiness, and returning `state()`;
+    rendering full refinement at the requested time clamped to `0..100000`
+    seconds, waiting for submitted GPU work, keeping full refinement selected
+    until the next user interaction, marking readiness, and returning `state()`;
   - `frame(type = "image/png", quality = 0.95): Promise<string>` returning the
     encoded frame bytes as a base64 string without a data-URL prefix.
+- `renderAt` and `frame` are exclusive deterministic operations; a caller that
+  overlaps either operation receives a clear rejection rather than racing the
+  shared simulation state or presentation texture.
 - Initialization failures set
   `document.documentElement.dataset.blackholeError` to a concise message and do
   not mark the page ready.
+- Device loss and uncaptured GPU errors after initialization clear readiness,
+  stop interactive scheduling, expose `data-blackhole-error`, and make public
+  rendering/capture calls reject until the page is reloaded.
 
 ## Progressive Refinement Contract
 
